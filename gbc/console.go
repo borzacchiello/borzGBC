@@ -1,8 +1,10 @@
 package gbc
 
+import "borzGBC/z80cpu"
+
 type Console struct {
 	Cart *Cart
-	CPU  *GBCpu
+	CPU  *z80cpu.Z80Cpu
 }
 
 func (cons *Console) Read(addr uint16) uint8 {
@@ -25,8 +27,8 @@ func MakeConsole(rom_filepath string) (*Console, error) {
 
 	res := &Console{
 		Cart: cart,
-		CPU:  &GBCpu{},
+		CPU:  &z80cpu.Z80Cpu{},
 	}
-	res.CPU.memory = res
+	res.CPU.Mem = res
 	return res, nil
 }
