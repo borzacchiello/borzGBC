@@ -1,6 +1,8 @@
 package z80cpu
 
-import "testing"
+import (
+	"testing"
+)
 
 type TestMemory struct {
 	mem [0xffff]uint8
@@ -64,5 +66,63 @@ func TestRegcoupleInc(t *testing.T) {
 
 	if cpu.b != 2 || cpu.c != 0 {
 		t.Errorf("cpu.b=%d (exp: 2); cpu.c=%d (exp: 0)", cpu.b, cpu.c)
+	}
+}
+
+func TestProgHLToHex(t *testing.T) {
+	var prog = []byte{
+		0x00, 0x00, 0x00, // 00: nop (x3)
+		0x00,             // 03: nop
+		0xcd, 0x08, 0x00, // 04: call 0x08
+		0x76,       //       07: halt
+		0x3e, 0x30, //       08: ld a, 0x30
+		0xd3, 0x01, //       0a: out (0x01), a
+		0x3e, 0x78, //       0c: ld a, 0x78
+		0xd3, 0x01, //       0e: out (0x01), a
+		0x4c,             // 10: ld c, h
+		0xcd, 0x19, 0x00, // 11: call 0x19
+		0x4d,             // 14: ld c, l
+		0xcd, 0x19, 0x00, // 15: call 0x19
+		0xc9,             // 18: ret
+		0x79,             // 19: ld a, c
+		0x1f,             // 1a: rra
+		0x1f,             // 1b: rra
+		0x1f,             // 1c: rra
+		0x1f,             // 1d: rra
+		0xcd, 0x22, 0x00, // 1e: call 0x22
+		0x79,       //       21: ld a, c
+		0xe6, 0x0f, //       22: and 0x0f
+		0xc6, 0x90, //       24: add a, 0x90
+		0x27,       //       26: daa
+		0xce, 0x40, //       27: adc a,0x40
+		0x27,       //       29: daa
+		0xd3, 0x01, //       2a: out (0x01), a
+		0xc9} //             2c: ret
+
+	memory := &TestMemory{}
+	memory.WriteBuffer(0, prog)
+
+	cpu := MakeZ80Cpu(memory)
+
+	runProg := func(inp uint16) string {
+		cpu.Reset()
+
+		cpu.h = uint8(inp >> 8)
+		cpu.l = uint8(inp & 0xff)
+
+		for !cpu.isHalted {
+			cpu.ExecOne()
+		}
+		return string(cpu.OutBuffer)
+	}
+
+	out := runProg(0xdead)
+	if out != "0xDEAD" {
+		t.Errorf("output=%s, expected 0xDEAD", out)
+	}
+
+	out = runProg(0xbeef)
+	if out != "0xBEEF" {
+		t.Errorf("output=%s, expected 0xBEEF", out)
 	}
 }
