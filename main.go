@@ -7,18 +7,24 @@ import (
 	"borzGBC/gbc"
 )
 
+type VoidVideoDriver struct {
+}
+
+func (d *VoidVideoDriver) Draw(frameBuffer [gbc.SCREEN_HEIGHT][gbc.SCREEN_WIDTH]uint8) {
+}
+
 func main() {
 	if len(os.Args) < 2 {
 		fmt.Println("missing ROM filename")
 		return
 	}
 
-	cart, err := gbc.LoadCartridge(os.Args[1])
+	vd := &VoidVideoDriver{}
+	console, err := gbc.MakeConsole(os.Args[1], vd)
 	if err != nil {
 		fmt.Printf("Unable to load cartridge: %s\n", err)
 		return
 	}
 
-	// fmt.Printf("%+v\n", cart)
-	fmt.Printf("game title: %s\n", cart.GetGameTitle())
+	console.Run()
 }

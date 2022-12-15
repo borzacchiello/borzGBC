@@ -5,6 +5,12 @@ type Memory interface {
 	Write(uint16, uint8)
 }
 
+type Z80Interrupt struct {
+	Name string
+	Mask uint8
+	Addr uint16
+}
+
 type Z80Cpu struct {
 	Mem                 Memory
 	a, b, c, d, e, h, l uint8
@@ -12,8 +18,14 @@ type Z80Cpu struct {
 
 	flagWasZero, flagWasSub, flagHalfCarry, flagCarry bool
 
-	branchWasTaken bool
-	isHalted       bool
+	// InterruptEnable and InterruptFlag regs
+	IE, IF uint8
+
+	branchWasTaken    bool
+	isHalted          bool
+	interruptsEnabled bool
+
+	Interrupts []Z80Interrupt
 
 	// Used to hold "OUT" data
 	OutBuffer []byte
@@ -43,6 +55,14 @@ func (cpu *Z80Cpu) Reset() {
 	cpu.isHalted = false
 }
 
+func (cpu *Z80Cpu) RegisterInterrupt(interrupt Z80Interrupt) {
+	cpu.Interrupts = append(cpu.Interrupts, interrupt)
+}
+
+func (cpu *Z80Cpu) SetInterrupt(mask uint8) {
+	cpu.IF |= mask
+}
+
 func (cpu *Z80Cpu) fetchOpcode() uint8 {
 	opcode := cpu.Mem.Read(cpu.pc)
 	cpu.pc += 1
@@ -69,7 +89,38 @@ func (cpu *Z80Cpu) evalCondition(cond Condition) bool {
 	return res
 }
 
+func (cpu *Z80Cpu) handleInterrupts() {
+	if !cpu.interruptsEnabled {
+		return
+	}
+
+	interruptValue := cpu.IE & cpu.IF
+	if interruptValue == 0 {
+		return
+	}
+
+	cpu.isHalted = false
+	cpu.StackPush16(cpu.pc)
+	cpu.interruptsEnabled = false
+
+	interruptWasHandled := false
+	for _, interrupt := range cpu.Interrupts {
+		if interruptValue&interrupt.Mask != 0 {
+			cpu.IF &= ^interrupt.Mask
+			cpu.pc = interrupt.Addr
+			interruptWasHandled = true
+			break
+		}
+	}
+
+	if !interruptWasHandled {
+		panic("Invalid interrupt")
+	}
+}
+
 func (cpu *Z80Cpu) ExecOne() int {
+	cpu.handleInterrupts()
+
 	if cpu.isHalted {
 		return 1
 	}
