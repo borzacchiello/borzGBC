@@ -41,6 +41,26 @@ func TestLoadA(t *testing.T) {
 	}
 }
 
+func TestXor(t *testing.T) {
+	var prog = []byte{
+		0x3e, 0x10, // ld a, 0x10
+		0x06, 0x20, // ld b, 0x20
+		0xa8, //       xor b
+	}
+
+	memory := &TestMemory{}
+	memory.WriteBuffer(0, prog)
+
+	cpu := Z80Cpu{Mem: memory}
+	cpu.ExecOne()
+	cpu.ExecOne()
+	cpu.ExecOne()
+
+	if cpu.a != 0x30 {
+		t.Errorf("cpu.a=%02x (exp: 0x30)", cpu.a)
+	}
+}
+
 func TestRegcoupleInc(t *testing.T) {
 	var prog = []byte{
 		0x03, // inc bc
