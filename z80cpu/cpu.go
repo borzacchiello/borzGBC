@@ -732,9 +732,9 @@ var handlers = [256]func(*Z80Cpu){
 	func(cpu *Z80Cpu) { panic("Opcode DD unimplemented") },                                         // DD
 	func(cpu *Z80Cpu) { panic("Opcode DE unimplemented") },                                         // DE
 	func(cpu *Z80Cpu) { panic("Opcode DF unimplemented") },                                         // DF
-	func(cpu *Z80Cpu) { panic("Opcode E0 unimplemented") },                                         // E0
+	func(cpu *Z80Cpu) { handler_ld_MEM_8(cpu, uint16(cpu.getPC8())+0xFF00, cpu.a) },                // E0
 	func(cpu *Z80Cpu) { panic("Opcode E1 unimplemented") },                                         // E1
-	func(cpu *Z80Cpu) { panic("Opcode E2 unimplemented") },                                         // E2
+	func(cpu *Z80Cpu) { handler_ld_MEM_8(cpu, uint16(cpu.c)+0xFF00, cpu.a) },                       // E2
 	func(cpu *Z80Cpu) { panic("Opcode E3 unimplemented") },                                         // E3
 	func(cpu *Z80Cpu) { panic("Opcode E4 unimplemented") },                                         // E4
 	func(cpu *Z80Cpu) { panic("Opcode E5 unimplemented") },                                         // E5
@@ -748,9 +748,9 @@ var handlers = [256]func(*Z80Cpu){
 	func(cpu *Z80Cpu) { panic("Opcode ED unimplemented") },                                         // ED
 	func(cpu *Z80Cpu) { panic("Opcode EE unimplemented") },                                         // EE
 	func(cpu *Z80Cpu) { panic("Opcode EF unimplemented") },                                         // EF
-	func(cpu *Z80Cpu) { panic("Opcode F0 unimplemented") },                                         // F0
+	func(cpu *Z80Cpu) { handler_ld_R_MEM_8(cpu, &cpu.a, uint16(cpu.getPC8())+0xFF00) },             // F0
 	func(cpu *Z80Cpu) { panic("Opcode F1 unimplemented") },                                         // F1
-	func(cpu *Z80Cpu) { panic("Opcode F2 unimplemented") },                                         // F2
+	func(cpu *Z80Cpu) { handler_ld_R_MEM_8(cpu, &cpu.a, uint16(cpu.c)+0xFF00) },                    // F2
 	func(cpu *Z80Cpu) { panic("Opcode F3 unimplemented") },                                         // F3
 	func(cpu *Z80Cpu) { panic("Opcode F4 unimplemented") },                                         // F4
 	func(cpu *Z80Cpu) { panic("Opcode F5 unimplemented") },                                         // F5
