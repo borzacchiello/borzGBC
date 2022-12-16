@@ -481,12 +481,12 @@ func handler_call(cpu *Z80Cpu) {
 
 // JR
 func handler_jr(cpu *Z80Cpu, off int8) {
-	cpu.pc = uint16(int(cpu.pc) + int(off))
+	cpu.pc = uint16(int(cpu.pc) + 1 + int(off))
 }
 
 func handler_jr_IF(cpu *Z80Cpu, off int8, cond bool) {
 	if cond {
-		cpu.pc = uint16(int(cpu.pc) + int(off))
+		cpu.pc = uint16(int(cpu.pc) + 1 + int(off))
 	} else {
 		cpu.pc += 1
 	}
