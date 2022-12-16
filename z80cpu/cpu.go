@@ -262,6 +262,17 @@ func handler_ldi_MEM_R(cpu *Z80Cpu, addr uint16, val uint8) {
 	cpu.h, cpu.l = unpack_regcouple(pack_regcouple(cpu.h, cpu.l) + 1)
 }
 
+// LDD
+func handler_ldd_R_MEM(cpu *Z80Cpu, dst *uint8, addr uint16) {
+	*dst = cpu.Mem.Read(addr)
+	cpu.h, cpu.l = unpack_regcouple(pack_regcouple(cpu.h, cpu.l) - 1)
+}
+
+func handler_ldd_MEM_R(cpu *Z80Cpu, addr uint16, val uint8) {
+	cpu.Mem.Write(addr, val)
+	cpu.h, cpu.l = unpack_regcouple(pack_regcouple(cpu.h, cpu.l) - 1)
+}
+
 // INC
 func handler_inc_R_8(cpu *Z80Cpu, dst *uint8) {
 	*dst = *dst + 1
@@ -540,7 +551,7 @@ var handlers = [256]func(*Z80Cpu){
 	func(cpu *Z80Cpu) { handler_cpl(cpu) },                                                         // 2F
 	func(cpu *Z80Cpu) { handler_jr_IF(cpu, int8(cpu.Mem.Read(cpu.pc)), !cpu.flagCarry) },           // 30
 	func(cpu *Z80Cpu) { handler_ld_R_16_2(cpu, &cpu.sp, cpu.getPC16()) },                           // 31
-	func(cpu *Z80Cpu) { panic("Opcode 32 unimplemented") },                                         // 32
+	func(cpu *Z80Cpu) { handler_ldd_MEM_R(cpu, pack_regcouple(cpu.h, cpu.l), cpu.a) },              // 32
 	func(cpu *Z80Cpu) { handler_inc_R_16_2(cpu, &cpu.sp) },                                         // 33
 	func(cpu *Z80Cpu) { panic("Opcode 34 unimplemented") },                                         // 34
 	func(cpu *Z80Cpu) { panic("Opcode 35 unimplemented") },                                         // 35
@@ -548,7 +559,7 @@ var handlers = [256]func(*Z80Cpu){
 	func(cpu *Z80Cpu) { panic("Opcode 37 unimplemented") },                                         // 37
 	func(cpu *Z80Cpu) { handler_jr_IF(cpu, int8(cpu.Mem.Read(cpu.pc)), cpu.flagCarry) },            // 38
 	func(cpu *Z80Cpu) { handler_add_R_16(cpu, &cpu.h, &cpu.l, cpu.sp) },                            // 39
-	func(cpu *Z80Cpu) { panic("Opcode 3A unimplemented") },                                         // 3A
+	func(cpu *Z80Cpu) { handler_ldd_R_MEM(cpu, &cpu.a, pack_regcouple(cpu.h, cpu.l)) },             // 3A
 	func(cpu *Z80Cpu) { handler_dec_R_16_2(cpu, &cpu.sp) },                                         // 3B
 	func(cpu *Z80Cpu) { handler_inc_R_8(cpu, &cpu.a) },                                             // 3C
 	func(cpu *Z80Cpu) { handler_dec_R_8(cpu, &cpu.a) },                                             // 3D
