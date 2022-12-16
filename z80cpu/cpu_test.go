@@ -61,6 +61,29 @@ func TestXor(t *testing.T) {
 	}
 }
 
+func TestBit(t *testing.T) {
+	var prog = []byte{
+		0x3e, 0x10, // ld a, 0x10
+		0xcb, 0x67, // bit 4, a
+		0xcb, 0x47, // bit 0, a
+	}
+
+	memory := &TestMemory{}
+	memory.WriteBuffer(0, prog)
+
+	cpu := Z80Cpu{Mem: memory}
+	cpu.ExecOne()
+	cpu.ExecOne()
+	if cpu.flagWasZero {
+		t.Errorf("flagWasZero should be false")
+	}
+
+	cpu.ExecOne()
+	if !cpu.flagWasZero {
+		t.Errorf("flagWasZero should be true")
+	}
+}
+
 func TestRegcoupleInc(t *testing.T) {
 	var prog = []byte{
 		0x03, // inc bc
