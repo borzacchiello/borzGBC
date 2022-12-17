@@ -111,6 +111,30 @@ func TestRl(t *testing.T) {
 	}
 }
 
+func TestCp(t *testing.T) {
+	var prog = []byte{
+		0xb8, // cp b
+	}
+	memory := &TestMemory{}
+	memory.WriteBuffer(0, prog)
+
+	cpu := Z80Cpu{Mem: memory}
+	cpu.a = 10
+	cpu.b = 20
+	cpu.ExecOne()
+	if cpu.flagWasZero {
+		t.Errorf("flag zero should not be set")
+	}
+
+	cpu.Reset()
+	cpu.a = 10
+	cpu.b = 10
+	cpu.ExecOne()
+	if !cpu.flagWasZero {
+		t.Errorf("flag zero should be set")
+	}
+}
+
 func TestBit(t *testing.T) {
 	var prog = []byte{
 		0x3e, 0x10, // ld a, 0x10
