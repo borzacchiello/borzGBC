@@ -92,6 +92,25 @@ func TestJRNZ(t *testing.T) {
 	}
 }
 
+func TestRl(t *testing.T) {
+	var prog = []byte{
+		0x06, 0x0a, // ld b, 10
+		0xcb, 0x10, // rl b
+		0xcb, 0x10, // rl b
+	}
+	memory := &TestMemory{}
+	memory.WriteBuffer(0, prog)
+
+	cpu := Z80Cpu{Mem: memory}
+	cpu.ExecOne()
+	cpu.ExecOne()
+	cpu.ExecOne()
+
+	if cpu.b != 40 {
+		t.Errorf("cpu.b=%d (exp: 40)", cpu.b)
+	}
+}
+
 func TestBit(t *testing.T) {
 	var prog = []byte{
 		0x3e, 0x10, // ld a, 0x10

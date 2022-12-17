@@ -435,6 +435,23 @@ func handler_rl_R(cpu *Z80Cpu, dst *uint8) {
 	cpu.flagCarry = carry != 0
 }
 
+func handler_rl_MEM(cpu *Z80Cpu, addr uint16) {
+	val := cpu.Mem.Read(addr)
+	carry := val >> 7
+
+	val = val << 1
+	if cpu.flagCarry {
+		val |= 1
+	}
+
+	cpu.Mem.Write(addr, val)
+
+	cpu.flagWasZero = val == 0
+	cpu.flagWasSub = false
+	cpu.flagHalfCarry = false
+	cpu.flagCarry = carry != 0
+}
+
 // RR
 func handler_rrc_R(cpu *Z80Cpu, dst *uint8) {
 	carry := *dst & 1
@@ -783,14 +800,14 @@ var cb_handlers = [256]func(*Z80Cpu){
 	func(cpu *Z80Cpu) { panic("CB Opcode 0D unimplemented") },                             // 0D
 	func(cpu *Z80Cpu) { panic("CB Opcode 0E unimplemented") },                             // 0E
 	func(cpu *Z80Cpu) { panic("CB Opcode 0F unimplemented") },                             // 0F
-	func(cpu *Z80Cpu) { panic("CB Opcode 10 unimplemented") },                             // 10
-	func(cpu *Z80Cpu) { panic("CB Opcode 11 unimplemented") },                             // 11
-	func(cpu *Z80Cpu) { panic("CB Opcode 12 unimplemented") },                             // 12
-	func(cpu *Z80Cpu) { panic("CB Opcode 13 unimplemented") },                             // 13
-	func(cpu *Z80Cpu) { panic("CB Opcode 14 unimplemented") },                             // 14
-	func(cpu *Z80Cpu) { panic("CB Opcode 15 unimplemented") },                             // 15
-	func(cpu *Z80Cpu) { panic("CB Opcode 16 unimplemented") },                             // 16
-	func(cpu *Z80Cpu) { panic("CB Opcode 17 unimplemented") },                             // 17
+	func(cpu *Z80Cpu) { handler_rl_R(cpu, &cpu.b) },                                       // 10
+	func(cpu *Z80Cpu) { handler_rl_R(cpu, &cpu.c) },                                       // 11
+	func(cpu *Z80Cpu) { handler_rl_R(cpu, &cpu.d) },                                       // 12
+	func(cpu *Z80Cpu) { handler_rl_R(cpu, &cpu.e) },                                       // 13
+	func(cpu *Z80Cpu) { handler_rl_R(cpu, &cpu.h) },                                       // 14
+	func(cpu *Z80Cpu) { handler_rl_R(cpu, &cpu.l) },                                       // 15
+	func(cpu *Z80Cpu) { handler_rl_MEM(cpu, pack_regcouple(cpu.h, cpu.l)) },               // 16
+	func(cpu *Z80Cpu) { handler_rl_R(cpu, &cpu.a) },                                       // 17
 	func(cpu *Z80Cpu) { panic("CB Opcode 18 unimplemented") },                             // 18
 	func(cpu *Z80Cpu) { panic("CB Opcode 19 unimplemented") },                             // 19
 	func(cpu *Z80Cpu) { panic("CB Opcode 1A unimplemented") },                             // 1A
