@@ -4,16 +4,16 @@ type PpuMode int
 
 const (
 	ACCESS_OAM  PpuMode = 2
-	ACCESS_VRAM         = 3
-	HBLANK              = 0
-	VBLANK              = 1
+	ACCESS_VRAM PpuMode = 3
+	HBLANK      PpuMode = 0
+	VBLANK      PpuMode = 1
 )
 
 const (
 	CLOCKS_ACCESS_OAM  int = 80
-	CLOCKS_ACCESS_VRAM     = 172
-	CLOCKS_HBLANK          = 204
-	CLOCKS_VBLANK          = 456
+	CLOCKS_ACCESS_VRAM int = 172
+	CLOCKS_HBLANK      int = 204
+	CLOCKS_VBLANK      int = 456
 )
 
 const (
@@ -21,26 +21,51 @@ const (
 	SCREEN_HEIGHT int = 144
 )
 
+const (
+	TILE_SET_ZERO_ADDRESS uint16 = 0x8000
+	TILE_SET_ONE_ADDRESS  uint16 = 0x8800
+	TILE_MAP_ZERO_ADDRESS uint16 = 0x9800
+	TILE_MAP_ONE_ADDRESS  uint16 = 0x9C00
+)
+
+const (
+	BG_MAP_SIZE    = 256
+	TILE_WIDTH_PX  = 8
+	TILE_HEIGHT_PX = 8
+	TILES_PER_LINE = 32
+	TILE_BYTES     = 16
+)
+
 type VideoDriver interface {
-	Draw(frameBuffer [SCREEN_HEIGHT][SCREEN_WIDTH]uint8)
+	SetPixel(x, y int, color uint32)
+	CommitScreen()
+}
+
+type Palette struct {
+	colors [4]uint32
 }
 
 type Ppu struct {
 	Driver VideoDriver
+	GBC    *Console
 
-	VRAM_1      [8192]uint8
-	VRAM_2      [8192]uint8
-	FrameBuffer [SCREEN_HEIGHT][SCREEN_WIDTH]uint8
+	VRAM_1 [8192]uint8
+	VRAM_2 [8192]uint8
 
-	LcdStatus, Control uint8
+	STAT, LCDC      uint8
+	SCY, SCX        uint8
+	LY, LYC, WY, WX uint8
+	BGP             uint8
+	OBP0, OBP1      uint8
 
 	Mode       PpuMode
 	CycleCount int
 }
 
-func MakePpu(videoDriver VideoDriver) *Ppu {
+func MakePpu(GBC *Console, videoDriver VideoDriver) *Ppu {
 	ppu := &Ppu{
 		Driver: videoDriver,
+		GBC:    GBC,
 	}
 	return ppu
 }
@@ -57,8 +82,139 @@ func (ppu *Ppu) Write(addr uint16, value uint8) {
 		ppu.VRAM_2[addr-8192] = value
 		return
 	}
-
 	ppu.VRAM_1[addr] = value
+}
+
+func (ppu *Ppu) DisplayEnabled() bool {
+	return (ppu.LCDC>>7)&1 != 0
+}
+
+func (ppu *Ppu) WindowTileMap() bool {
+	return (ppu.LCDC>>6)&1 != 0
+}
+
+func (ppu *Ppu) WindowEnabled() bool {
+	return (ppu.LCDC>>5)&1 != 0
+}
+
+func (ppu *Ppu) BgWindowTileData() bool {
+	return (ppu.LCDC>>4)&1 != 0
+}
+
+func (ppu *Ppu) BgTileMapDisplay() bool {
+	return (ppu.LCDC>>3)&1 != 0
+}
+
+func (ppu *Ppu) SpriteSize() bool {
+	return (ppu.LCDC>>2)&1 != 0
+}
+
+func (ppu *Ppu) SpritesEnabled() bool {
+	return (ppu.LCDC>>1)&1 != 0
+}
+
+func (ppu *Ppu) BgEnabled() bool {
+	return ppu.LCDC&1 != 0
+}
+
+func getRGBFromColor(c uint8) uint32 {
+	switch c {
+	case 0:
+		// White
+		return 0xFFFFFFFF
+	case 1:
+		// Light Grey
+		return 0xAAAAAAFF
+	case 2:
+		// Dark Grey
+		return 0x555555FF
+	case 3:
+		// Black
+		return 0x000000FF
+	default:
+		panic("getRGBFromColor(): invalid color")
+	}
+}
+
+func (ppu *Ppu) loadPalette(reg uint8) Palette {
+	var c0, c1, c2, c3 uint8
+	c0 = ((reg>>1)&1)<<1 | (reg>>0)&1
+	c1 = ((reg>>3)&1)<<1 | (reg>>2)&1
+	c2 = ((reg>>5)&1)<<1 | (reg>>4)&1
+	c3 = ((reg>>7)&1)<<1 | (reg>>6)&1
+
+	return Palette{colors: [4]uint32{
+		getRGBFromColor(c0),
+		getRGBFromColor(c1),
+		getRGBFromColor(c2),
+		getRGBFromColor(c3)}}
+}
+
+func getPixelColor(p1, p2 uint8, tile_pixel int) uint8 {
+	return ((p1>>(7-tile_pixel))&1)<<1 | (p2>>(7-tile_pixel))&1
+}
+
+func (ppu *Ppu) drawBgLine(line uint8) {
+	palette := ppu.loadPalette(ppu.BGP)
+
+	tile_set_addr := TILE_SET_ZERO_ADDRESS
+	if ppu.BgWindowTileData() {
+		tile_set_addr = TILE_SET_ONE_ADDRESS
+	}
+	tile_map_addr := TILE_MAP_ZERO_ADDRESS
+	if !ppu.BgTileMapDisplay() {
+		tile_map_addr = TILE_MAP_ONE_ADDRESS
+	}
+
+	screen_y := int(line)
+	for screen_x := 0; screen_x < SCREEN_WIDTH; screen_x++ {
+		scrolled_x := screen_x + int(ppu.SCX)
+		scrolled_y := screen_y + int(ppu.SCY)
+
+		bg_map_x := scrolled_x % BG_MAP_SIZE
+		bg_map_y := scrolled_y % BG_MAP_SIZE
+
+		tile_x := bg_map_x / TILE_WIDTH_PX
+		tile_y := bg_map_y / TILE_HEIGHT_PX
+
+		tile_pixel_x := bg_map_x % TILE_WIDTH_PX
+		tile_pixel_y := bg_map_y % TILE_HEIGHT_PX
+
+		tile_index := tile_y*TILES_PER_LINE + tile_x
+		tile_id_addr := tile_map_addr + uint16(tile_index)
+
+		tile_id := ppu.GBC.Read(tile_id_addr)
+
+		tile_data_mem_off := int(tile_id) * TILE_BYTES
+		if ppu.BgWindowTileData() {
+			tile_data_mem_off = (int(tile_id) + 128) * TILE_BYTES
+		}
+
+		tile_data_line_off := tile_pixel_y * 2
+		tile_line_data_start_addr := tile_set_addr + uint16(tile_data_mem_off) + uint16(tile_data_line_off)
+
+		pixel_1 := ppu.GBC.Read(tile_line_data_start_addr)
+		pixel_2 := ppu.GBC.Read(tile_line_data_start_addr + 1)
+
+		pixel_color := getPixelColor(pixel_1, pixel_2, tile_pixel_x)
+		color := palette.colors[pixel_color]
+
+		ppu.Driver.SetPixel(screen_x, screen_y, color)
+	}
+}
+
+func (ppu *Ppu) writeScanline(line uint8) {
+	if !ppu.DisplayEnabled() {
+		return
+	}
+
+	if ppu.BgEnabled() {
+		ppu.drawBgLine(line)
+	}
+
+	if ppu.WindowEnabled() {
+		// TODO: draw window
+	}
 }
 
 func (ppu *Ppu) Tick(cycles int) {
@@ -66,13 +222,58 @@ func (ppu *Ppu) Tick(cycles int) {
 	switch ppu.Mode {
 	case ACCESS_OAM:
 		if ppu.CycleCount >= CLOCKS_ACCESS_OAM {
-			ppu.LcdStatus |= 3
+			ppu.CycleCount %= CLOCKS_ACCESS_OAM
 			ppu.Mode = ACCESS_VRAM
+
+			ppu.STAT |= 3
 		}
 	case ACCESS_VRAM:
-	case HBLANK:
-	case VBLANK:
-	}
+		if ppu.CycleCount >= CLOCKS_ACCESS_VRAM {
+			ppu.CycleCount %= CLOCKS_ACCESS_VRAM
+			ppu.Mode = HBLANK
 
-	ppu.CycleCount %= CLOCKS_VBLANK
+			lyConincidence := ppu.LY == ppu.LYC
+			if (ppu.STAT&4 != 0) || (ppu.STAT&64 != 0 && lyConincidence) {
+				ppu.GBC.CPU.SetInterrupt(InterruptLCDStat.Mask)
+			}
+
+			ppu.STAT &= ^uint8(7)
+			if lyConincidence {
+				ppu.STAT |= 4
+			}
+		}
+	case HBLANK:
+		if ppu.CycleCount >= CLOCKS_HBLANK {
+			ppu.CycleCount %= CLOCKS_HBLANK
+
+			ppu.writeScanline(ppu.LY)
+
+			ppu.LY += 1
+			if ppu.LY == 144 {
+				ppu.Mode = VBLANK
+				ppu.STAT &= ^uint8(2)
+				ppu.STAT |= 1
+				ppu.GBC.CPU.SetInterrupt(InterruptVBlank.Mask)
+			} else {
+				ppu.Mode = ACCESS_OAM
+				ppu.STAT |= 2
+				ppu.STAT &= ^uint8(1)
+			}
+		}
+	case VBLANK:
+		if ppu.CycleCount >= CLOCKS_VBLANK {
+			ppu.CycleCount %= CLOCKS_VBLANK
+
+			ppu.LY += 1
+			if ppu.LY == 154 {
+				// TODO: Write Sprites
+				ppu.Driver.CommitScreen()
+
+				ppu.LY = 0
+				ppu.Mode = ACCESS_OAM
+				ppu.STAT |= 2
+				ppu.STAT &= ^uint8(1)
+			}
+		}
+	}
 }
