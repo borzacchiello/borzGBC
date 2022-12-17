@@ -84,10 +84,13 @@ func (cons *Console) writeIO(addr uint16, value uint8) {
 		return
 	case addr == 0xFF41:
 		cons.PPU.STAT = value
+		return
 	case addr == 0xFF42:
 		cons.PPU.SCY = value
+		return
 	case addr == 0xFF43:
 		cons.PPU.SCX = value
+		return
 	case addr == 0xFF44:
 		cons.PPU.LY = 0
 		return
