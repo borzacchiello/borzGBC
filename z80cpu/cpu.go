@@ -780,7 +780,7 @@ var handlers = [256]func(*Z80Cpu){
 	func(cpu *Z80Cpu) { panic("Opcode E7 unimplemented") },                                          // E7
 	func(cpu *Z80Cpu) { panic("Opcode E8 unimplemented") },                                          // E8
 	func(cpu *Z80Cpu) { panic("Opcode E9 unimplemented") },                                          // E9
-	func(cpu *Z80Cpu) { panic("Opcode EA unimplemented") },                                          // EA
+	func(cpu *Z80Cpu) { handler_ld_MEM_8(cpu, cpu.getPC16(), cpu.a) },                               // EA
 	func(cpu *Z80Cpu) { panic("Opcode EB unimplemented") },                                          // EB
 	func(cpu *Z80Cpu) { panic("Opcode EC unimplemented") },                                          // EC
 	func(cpu *Z80Cpu) { panic("Opcode ED unimplemented") },                                          // ED
