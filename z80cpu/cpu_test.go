@@ -115,6 +115,58 @@ func TestBit(t *testing.T) {
 	}
 }
 
+func TestPushPop(t *testing.T) {
+	var prog = []byte{
+		0xe5, // push hl
+		0xe1, // pop hl
+	}
+
+	memory := &TestMemory{}
+	memory.WriteBuffer(0, prog)
+
+	cpu := Z80Cpu{Mem: memory}
+	cpu.Reset()
+	cpu.h = 33
+	cpu.l = 22
+
+	cpu.ExecOne()
+	cpu.ExecOne()
+
+	if cpu.h != 33 || cpu.l != 22 {
+		t.Errorf("cpu.h=%d (exp: 33); cpu.l=%d (exp: 2)", cpu.h, cpu.l)
+	}
+}
+
+func TestPushPopFlags(t *testing.T) {
+	var prog = []byte{
+		0xf5, // push af
+		0xf1, // pop af
+	}
+
+	memory := &TestMemory{}
+	memory.WriteBuffer(0, prog)
+
+	cpu := Z80Cpu{Mem: memory}
+	cpu.Reset()
+	cpu.a = 33
+	cpu.flagCarry = true
+	cpu.flagHalfCarry = false
+	cpu.flagWasSub = true
+	cpu.flagWasZero = false
+
+	cpu.ExecOne()
+	cpu.ExecOne()
+	if cpu.a != 33 || !cpu.flagCarry || cpu.flagHalfCarry || !cpu.flagWasSub || cpu.flagWasZero {
+		t.Errorf(
+			"cpu.a=%d (exp: 33); "+
+				"cpu.flagCarry=%v (exp: true); "+
+				"cpu.flagHalfCarry=%v (exp: false); "+
+				"cpu.flagWasSub=%v (exp: true); "+
+				"cpu.flagWasZero=%v (exp: false)",
+			cpu.a, cpu.flagCarry, cpu.flagHalfCarry, cpu.flagWasSub, cpu.flagWasZero)
+	}
+}
+
 func TestRegcoupleInc(t *testing.T) {
 	var prog = []byte{
 		0x03, // inc bc
