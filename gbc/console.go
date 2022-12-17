@@ -22,6 +22,9 @@ type Console struct {
 	CPU  *z80cpu.Z80Cpu
 	PPU  *Ppu
 
+	// Memory
+	HighRAM [0x80]byte
+
 	InBootROM bool
 	BootROM   []byte
 }
@@ -33,6 +36,10 @@ func (cons *Console) Read(addr uint16) uint8 {
 			return cons.BootROM[addr]
 		}
 		return cons.Cart.ROMBanks[0][addr]
+	case 0x8000 <= addr && addr <= 0x9FFF:
+		return cons.PPU.Read(addr - 0x8000)
+	case 0xFF80 <= addr && addr <= 0xFFFE:
+		return cons.HighRAM[addr-0xFF80]
 	default:
 		fmt.Printf("Unhandled read @ %04x\n", addr)
 	}
@@ -40,6 +47,14 @@ func (cons *Console) Read(addr uint16) uint8 {
 }
 
 func (cons *Console) Write(addr uint16, value uint8) {
+	switch {
+	case 0x8000 <= addr && addr <= 0x9FFF:
+		cons.PPU.Write(addr-0x8000, value)
+		return
+	case 0xFF80 <= addr && addr <= 0xFFFE:
+		cons.HighRAM[addr-0xFF80] = value
+		return
+	}
 	fmt.Printf("Unhandled write @ %04x <- %02x\n", addr, value)
 }
 

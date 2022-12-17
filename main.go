@@ -25,6 +25,7 @@ func main() {
 		fmt.Printf("Unable to load cartridge: %s\n", err)
 		return
 	}
+	console.CPU.EnableDisas = true
 
 	console.Run()
 }

@@ -1,5 +1,7 @@
 package z80cpu
 
+import "fmt"
+
 type Memory interface {
 	Read(uint16) uint8
 	Write(uint16, uint8)
@@ -29,6 +31,10 @@ type Z80Cpu struct {
 
 	// Used to hold "OUT" data
 	OutBuffer []byte
+
+	// Z80 disassembler, for debugging
+	EnableDisas bool
+	disas       Z80Disas
 }
 
 type Condition uint8
@@ -123,6 +129,11 @@ func (cpu *Z80Cpu) ExecOne() int {
 
 	if cpu.isHalted {
 		return 1
+	}
+
+	if cpu.EnableDisas {
+		_, disas_str := cpu.disas.DisassembleOneFromCPU(cpu)
+		fmt.Println(disas_str)
 	}
 
 	isCBOpcode := false
