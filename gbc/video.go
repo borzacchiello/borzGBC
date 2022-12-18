@@ -59,6 +59,9 @@ type Ppu struct {
 	BGP             uint8
 	OBP0, OBP1      uint8
 
+	// A clone of the screen
+	screen [SCREEN_WIDTH][SCREEN_HEIGHT]uint8
+
 	Mode       PpuMode
 	CycleCount int
 }
@@ -69,6 +72,12 @@ func MakePpu(GBC *Console, videoDriver VideoDriver) *Ppu {
 		GBC:    GBC,
 	}
 	return ppu
+}
+
+func (ppu *Ppu) setPixel(x, y int, c uint8, palette *Palette) {
+	color := palette.colors[c]
+
+	ppu.Driver.SetPixel(x, y, color)
 }
 
 func (ppu *Ppu) Read(addr uint16) uint8 {
@@ -198,9 +207,7 @@ func (ppu *Ppu) drawBgLine(line uint8) {
 		pixel_2 := ppu.GBC.Read(tile_line_data_start_addr + 1)
 
 		pixel_color := getPixelColor(pixel_1, pixel_2, tile_pixel_x)
-		color := palette.colors[pixel_color]
-
-		ppu.Driver.SetPixel(screen_x, screen_y, color)
+		ppu.setPixel(screen_x, screen_y, pixel_color, &palette)
 	}
 }
 
@@ -245,9 +252,7 @@ func (ppu *Ppu) drawWindowLine(line uint8) {
 		pixel_2 := ppu.GBC.Read(tile_line_data_start_addr + 1)
 
 		pixel_color := getPixelColor(pixel_1, pixel_2, tile_pixel_x)
-		color := palette.colors[pixel_color]
-
-		ppu.Driver.SetPixel(screen_x, screen_y, color)
+		ppu.setPixel(screen_x, screen_y, pixel_color, &palette)
 	}
 }
 
@@ -351,13 +356,11 @@ func (ppu *Ppu) drawSprite(sprite_id int) {
 				continue
 			}
 
-			// TODO check if current color is white
-			if false && obj_behind_bg {
+			if ppu.screen[screen_x][screen_y] != 0 && obj_behind_bg {
 				continue
 			}
 
-			c := palette.colors[color]
-			ppu.Driver.SetPixel(screen_x, screen_y, c)
+			ppu.setPixel(screen_x, screen_y, color, &palette)
 		}
 	}
 }
