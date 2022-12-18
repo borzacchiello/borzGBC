@@ -7,7 +7,7 @@ import (
 	"image/png"
 	"os"
 
-	"borzGBC/gbc"
+	"borzGBC/sdlplugin"
 )
 
 type ImageVideoDriver struct {
@@ -47,13 +47,11 @@ func main() {
 		return
 	}
 
-	vd := MkImageVideoDriver()
-	console, err := gbc.MakeConsole(os.Args[1], vd)
+	// vd := MkImageVideoDriver()
+	pl, err := sdlplugin.MakeSDLPlugin(1)
 	if err != nil {
-		fmt.Printf("Unable to load cartridge: %s\n", err)
-		return
+		fmt.Printf("unable to create SDLPlugin: %s\n", err)
 	}
-	console.CPU.EnableDisas = false
 
-	console.Run()
+	pl.Run(os.Args[1])
 }

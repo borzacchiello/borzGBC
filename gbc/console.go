@@ -17,10 +17,14 @@ var InterruptSerial z80cpu.Z80Interrupt = z80cpu.Z80Interrupt{
 var InterruptJoypad z80cpu.Z80Interrupt = z80cpu.Z80Interrupt{
 	Mask: 4, Addr: 0x60, Name: "JOYPAD"}
 
+const GBCPU_FREQ = 4194304
+
 type Console struct {
 	Cart *Cart
 	CPU  *z80cpu.Z80Cpu
 	PPU  *Ppu
+
+	CPUFreq int
 
 	// Memory
 	HighRAM [0x80]byte
@@ -202,6 +206,7 @@ func MakeConsole(rom_filepath string, videoDriver VideoDriver) (*Console, error)
 
 	res := &Console{
 		Cart:      cart,
+		CPUFreq:   GBCPU_FREQ,
 		BootROM:   boot,
 		InBootROM: true,
 	}
@@ -217,9 +222,20 @@ func MakeConsole(rom_filepath string, videoDriver VideoDriver) (*Console, error)
 	return res, nil
 }
 
-func (cons *Console) Run() {
-	for {
+func (cons *Console) Step() int {
+	prevFrame := cons.PPU.FrameCount
+
+	totCycles := 0
+	for cons.PPU.FrameCount == prevFrame {
 		cpuCycles := cons.CPU.ExecOne()
 		cons.PPU.Tick(cpuCycles)
+
+		totCycles += cpuCycles
 	}
+
+	return totCycles
+}
+
+func (cons *Console) GetMs(cycles int) int {
+	return cycles * 1000 / cons.CPUFreq
 }

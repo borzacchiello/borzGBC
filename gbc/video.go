@@ -64,6 +64,7 @@ type Ppu struct {
 
 	Mode       PpuMode
 	CycleCount int
+	FrameCount int
 }
 
 func MakePpu(GBC *Console, videoDriver VideoDriver) *Ppu {
@@ -440,6 +441,7 @@ func (ppu *Ppu) Tick(cycles int) {
 			if ppu.LY == 154 {
 				ppu.writeSprites()
 				ppu.Driver.CommitScreen()
+				ppu.FrameCount += 1
 
 				ppu.LY = 0
 				ppu.Mode = ACCESS_OAM
