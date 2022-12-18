@@ -20,9 +20,10 @@ var InterruptJoypad z80cpu.Z80Interrupt = z80cpu.Z80Interrupt{
 const GBCPU_FREQ = 4194304
 
 type Console struct {
-	Cart *Cart
-	CPU  *z80cpu.Z80Cpu
-	PPU  *Ppu
+	Cart  *Cart
+	CPU   *z80cpu.Z80Cpu
+	PPU   *Ppu
+	timer *Timer
 
 	CPUFreq int
 
@@ -37,6 +38,10 @@ type Console struct {
 
 func (cons *Console) readIO(addr uint16) uint8 {
 	switch {
+	case addr == 0xFF04:
+		return cons.timer.DIV
+	case addr == 0xFF0F:
+		return cons.CPU.IF
 	case addr == 0xFF40:
 		return cons.PPU.LCDC
 	case addr == 0xFF41:
@@ -83,6 +88,12 @@ func (cons *Console) dmaTransfer(value uint8) {
 
 func (cons *Console) writeIO(addr uint16, value uint8) {
 	switch {
+	case addr == 0xFF04:
+		cons.timer.Reset()
+		return
+	case addr == 0xFF0F:
+		cons.CPU.IF = value
+		return
 	case addr == 0xFF40:
 		cons.PPU.LCDC = value
 		return
@@ -212,6 +223,7 @@ func MakeConsole(rom_filepath string, videoDriver VideoDriver) (*Console, error)
 	}
 	res.PPU = MakePpu(res, videoDriver)
 	res.CPU = z80cpu.MakeZ80Cpu(res)
+	res.timer = MakeTimer(res)
 
 	res.CPU.RegisterInterrupt(InterruptVBlank)
 	res.CPU.RegisterInterrupt(InterruptLCDStat)
@@ -229,6 +241,7 @@ func (cons *Console) Step() int {
 	for cons.PPU.FrameCount == prevFrame {
 		cpuCycles := cons.CPU.ExecOne()
 		cons.PPU.Tick(cpuCycles)
+		cons.timer.Tick(cpuCycles)
 
 		totCycles += cpuCycles
 	}
