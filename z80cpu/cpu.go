@@ -1,6 +1,8 @@
 package z80cpu
 
-import "fmt"
+import (
+	"fmt"
+)
 
 type Memory interface {
 	Read(uint16) uint8
@@ -15,8 +17,8 @@ type Z80Interrupt struct {
 
 type Z80Cpu struct {
 	Mem                 Memory
-	a, b, c, d, e, h, l uint8
-	sp, pc              uint16
+	A, B, C, D, E, H, L uint8
+	SP, PC              uint16
 
 	flagWasZero, flagWasSub, flagHalfCarry, flagCarry bool
 
@@ -34,17 +36,8 @@ type Z80Cpu struct {
 
 	// Z80 disassembler, for debugging
 	EnableDisas bool
-	disas       Z80Disas
+	Disas       Z80Disas
 }
-
-type Condition uint8
-
-const (
-	Condition_C  Condition = 1
-	Condition_NC           = 2
-	Condition_Z            = 3
-	Condition_NZ           = 4
-)
 
 func MakeZ80Cpu(mem Memory) *Z80Cpu {
 	cpu := &Z80Cpu{
@@ -55,8 +48,8 @@ func MakeZ80Cpu(mem Memory) *Z80Cpu {
 }
 
 func (cpu *Z80Cpu) Reset() {
-	cpu.sp = 0xff
-	cpu.pc = 0
+	cpu.SP = 0xff
+	cpu.PC = 0
 	cpu.OutBuffer = make([]byte, 0)
 	cpu.isHalted = false
 }
@@ -70,29 +63,9 @@ func (cpu *Z80Cpu) SetInterrupt(mask uint8) {
 }
 
 func (cpu *Z80Cpu) fetchOpcode() uint8 {
-	opcode := cpu.Mem.Read(cpu.pc)
-	cpu.pc += 1
+	opcode := cpu.Mem.Read(cpu.PC)
+	cpu.PC += 1
 	return opcode
-}
-
-func (cpu *Z80Cpu) evalCondition(cond Condition) bool {
-	var res bool
-
-	switch cond {
-	case Condition_C:
-		res = cpu.flagCarry
-	case Condition_NC:
-		res = !cpu.flagCarry
-	case Condition_Z:
-		res = cpu.flagWasZero
-	case Condition_NZ:
-		res = !cpu.flagWasZero
-	default:
-		panic("evalCondition: invalid condition")
-	}
-
-	cpu.branchWasTaken = res
-	return res
 }
 
 func (cpu *Z80Cpu) handleInterrupts() {
@@ -106,14 +79,14 @@ func (cpu *Z80Cpu) handleInterrupts() {
 	}
 
 	cpu.isHalted = false
-	cpu.StackPush16(cpu.pc)
+	cpu.StackPush16(cpu.PC)
 	cpu.interruptsEnabled = false
 
 	interruptWasHandled := false
 	for _, interrupt := range cpu.Interrupts {
 		if interruptValue&interrupt.Mask != 0 {
 			cpu.IF &= ^interrupt.Mask
-			cpu.pc = interrupt.Addr
+			cpu.PC = interrupt.Addr
 			interruptWasHandled = true
 			break
 		}
@@ -132,7 +105,7 @@ func (cpu *Z80Cpu) ExecOne() int {
 	}
 
 	if cpu.EnableDisas {
-		_, disas_str := cpu.disas.DisassembleOneFromCPU(cpu)
+		_, disas_str := cpu.Disas.DisassembleOneFromCPU(cpu)
 		fmt.Println(disas_str)
 	}
 
@@ -141,7 +114,7 @@ func (cpu *Z80Cpu) ExecOne() int {
 	opcode := cpu.fetchOpcode()
 	if opcode == 0xcb {
 		isCBOpcode = true
-		cb_opcode = cpu.Mem.Read(cpu.pc)
+		cb_opcode = cpu.Mem.Read(cpu.PC)
 	}
 
 	cpu.branchWasTaken = false
@@ -193,33 +166,33 @@ func (cpu *Z80Cpu) UnpackFlags(f uint8) {
 }
 
 func (cpu *Z80Cpu) getPC8() uint8 {
-	v := cpu.Mem.Read(cpu.pc)
+	v := cpu.Mem.Read(cpu.PC)
 
-	cpu.pc += 1
+	cpu.PC += 1
 	return v
 }
 
 func (cpu *Z80Cpu) getPC16() uint16 {
-	l := cpu.Mem.Read(cpu.pc)
-	h := cpu.Mem.Read(cpu.pc + 1)
+	l := cpu.Mem.Read(cpu.PC)
+	h := cpu.Mem.Read(cpu.PC + 1)
 
-	cpu.pc += 2
+	cpu.PC += 2
 	return (uint16(h) << 8) | uint16(l)
 }
 
 func (cpu *Z80Cpu) StackPush16(val uint16) {
-	cpu.sp -= 1
-	cpu.Mem.Write(cpu.sp, uint8(val>>8))
+	cpu.SP -= 1
+	cpu.Mem.Write(cpu.SP, uint8(val>>8))
 
-	cpu.sp -= 1
-	cpu.Mem.Write(cpu.sp, uint8(val&0xff))
+	cpu.SP -= 1
+	cpu.Mem.Write(cpu.SP, uint8(val&0xff))
 }
 
 func (cpu *Z80Cpu) StackPop16() uint16 {
-	low := cpu.Mem.Read(cpu.sp)
-	cpu.sp += 1
-	high := cpu.Mem.Read(cpu.sp)
-	cpu.sp += 1
+	low := cpu.Mem.Read(cpu.SP)
+	cpu.SP += 1
+	high := cpu.Mem.Read(cpu.SP)
+	cpu.SP += 1
 
 	return uint16(high)<<8 | uint16(low)
 }
@@ -265,23 +238,23 @@ func handler_ld_R_MEM_8(cpu *Z80Cpu, dst *uint8, addr uint16) {
 // LDI
 func handler_ldi_R_MEM(cpu *Z80Cpu, dst *uint8, addr uint16) {
 	*dst = cpu.Mem.Read(addr)
-	cpu.h, cpu.l = unpack_regcouple(pack_regcouple(cpu.h, cpu.l) + 1)
+	cpu.H, cpu.L = unpack_regcouple(pack_regcouple(cpu.H, cpu.L) + 1)
 }
 
 func handler_ldi_MEM_R(cpu *Z80Cpu, addr uint16, val uint8) {
 	cpu.Mem.Write(addr, val)
-	cpu.h, cpu.l = unpack_regcouple(pack_regcouple(cpu.h, cpu.l) + 1)
+	cpu.H, cpu.L = unpack_regcouple(pack_regcouple(cpu.H, cpu.L) + 1)
 }
 
 // LDD
 func handler_ldd_R_MEM(cpu *Z80Cpu, dst *uint8, addr uint16) {
 	*dst = cpu.Mem.Read(addr)
-	cpu.h, cpu.l = unpack_regcouple(pack_regcouple(cpu.h, cpu.l) - 1)
+	cpu.H, cpu.L = unpack_regcouple(pack_regcouple(cpu.H, cpu.L) - 1)
 }
 
 func handler_ldd_MEM_R(cpu *Z80Cpu, addr uint16, val uint8) {
 	cpu.Mem.Write(addr, val)
-	cpu.h, cpu.l = unpack_regcouple(pack_regcouple(cpu.h, cpu.l) - 1)
+	cpu.H, cpu.L = unpack_regcouple(pack_regcouple(cpu.H, cpu.L) - 1)
 }
 
 // INC
@@ -416,7 +389,7 @@ func handler_cp(cpu *Z80Cpu, v1, v2 uint8) {
 
 // CPL
 func handler_cpl(cpu *Z80Cpu) {
-	cpu.a = ^cpu.a
+	cpu.A = ^cpu.A
 
 	cpu.flagWasSub = true
 	cpu.flagHalfCarry = true
@@ -424,7 +397,7 @@ func handler_cpl(cpu *Z80Cpu) {
 
 // DAA
 func handler_daa(cpu *Z80Cpu) {
-	val := cpu.a
+	val := cpu.A
 
 	var inc uint8 = 0
 	if cpu.flagCarry {
@@ -450,7 +423,7 @@ func handler_daa(cpu *Z80Cpu) {
 	cpu.flagHalfCarry = false
 	cpu.flagWasZero = val == 0
 
-	cpu.a = val
+	cpu.A = val
 }
 
 // RL
@@ -523,43 +496,45 @@ func handler_rr_R(cpu *Z80Cpu, dst *uint8) {
 // BIT
 func handler_bit(cpu *Z80Cpu, bit int, value uint8) {
 	cpu.flagWasZero = ((value >> bit) & 1) == 0
-	cpu.flagHalfCarry = false
+	cpu.flagHalfCarry = true
 	cpu.flagWasSub = false
 }
 
 // RET
 func handler_ret(cpu *Z80Cpu) {
-	cpu.pc = cpu.StackPop16()
+	cpu.PC = cpu.StackPop16()
 }
 
 // CALL
 func handler_call(cpu *Z80Cpu) {
 	addr := cpu.getPC16()
-	cpu.StackPush16(cpu.pc)
-	cpu.pc = addr
+	cpu.StackPush16(cpu.PC)
+	cpu.PC = addr
 }
 
 // JR
 func handler_jr(cpu *Z80Cpu, off int8) {
-	cpu.pc = uint16(int(cpu.pc) + 1 + int(off))
+	cpu.PC = uint16(int(cpu.PC) + 1 + int(off))
 }
 
 func handler_jr_IF(cpu *Z80Cpu, off int8, cond bool) {
 	if cond {
-		cpu.pc = uint16(int(cpu.pc) + 1 + int(off))
+		cpu.branchWasTaken = true
+		cpu.PC = uint16(int(cpu.PC) + 1 + int(off))
 	} else {
-		cpu.pc += 1
+		cpu.PC += 1
 	}
 }
 
 // JP
 func handler_jp(cpu *Z80Cpu, dst uint16) {
-	cpu.pc = dst
+	cpu.PC = dst
 }
 
 func handler_jp_IF(cpu *Z80Cpu, dst uint16, cond bool) {
 	if cond {
-		cpu.pc = dst
+		cpu.branchWasTaken = true
+		cpu.PC = dst
 	}
 }
 
@@ -588,141 +563,141 @@ func handler_stop() {}
 
 var handlers = [256]func(*Z80Cpu){
 	func(cpu *Z80Cpu) { handler_nop() },                                                             // 00
-	func(cpu *Z80Cpu) { handler_ld_R_16(cpu, &cpu.b, &cpu.c, cpu.getPC16()) },                       // 01
-	func(cpu *Z80Cpu) { handler_ld_MEM_8(cpu, pack_regcouple(cpu.b, cpu.c), cpu.a) },                // 02
-	func(cpu *Z80Cpu) { handler_inc_R_16(cpu, &cpu.b, &cpu.c) },                                     // 03
-	func(cpu *Z80Cpu) { handler_inc_R_8(cpu, &cpu.b) },                                              // 04
-	func(cpu *Z80Cpu) { handler_dec_R_8(cpu, &cpu.b) },                                              // 05
-	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.b, cpu.getPC8()) },                                 // 06
-	func(cpu *Z80Cpu) { handler_rlc_R(cpu, &cpu.a); cpu.flagWasZero = false /* rlca */ },            // 07
-	func(cpu *Z80Cpu) { handler_ld_MEM_16(cpu, cpu.getPC16(), cpu.sp) },                             // 08
-	func(cpu *Z80Cpu) { handler_add_R_16(cpu, &cpu.h, &cpu.l, pack_regcouple(cpu.b, cpu.c)) },       // 09
-	func(cpu *Z80Cpu) { handler_ld_R_MEM_8(cpu, &cpu.a, pack_regcouple(cpu.b, cpu.c)) },             // 0A
-	func(cpu *Z80Cpu) { handler_dec_R_16(cpu, &cpu.b, &cpu.c) },                                     // 0B
-	func(cpu *Z80Cpu) { handler_inc_R_8(cpu, &cpu.c) },                                              // 0C
-	func(cpu *Z80Cpu) { handler_dec_R_8(cpu, &cpu.c) },                                              // 0D
-	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.c, cpu.getPC8()) },                                 // 0E
-	func(cpu *Z80Cpu) { handler_rrc_R(cpu, &cpu.a); cpu.flagWasZero = false /* rrca */ },            // 0F
+	func(cpu *Z80Cpu) { handler_ld_R_16(cpu, &cpu.B, &cpu.C, cpu.getPC16()) },                       // 01
+	func(cpu *Z80Cpu) { handler_ld_MEM_8(cpu, pack_regcouple(cpu.B, cpu.C), cpu.A) },                // 02
+	func(cpu *Z80Cpu) { handler_inc_R_16(cpu, &cpu.B, &cpu.C) },                                     // 03
+	func(cpu *Z80Cpu) { handler_inc_R_8(cpu, &cpu.B) },                                              // 04
+	func(cpu *Z80Cpu) { handler_dec_R_8(cpu, &cpu.B) },                                              // 05
+	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.B, cpu.getPC8()) },                                 // 06
+	func(cpu *Z80Cpu) { handler_rlc_R(cpu, &cpu.A); cpu.flagWasZero = false /* rlca */ },            // 07
+	func(cpu *Z80Cpu) { handler_ld_MEM_16(cpu, cpu.getPC16(), cpu.SP) },                             // 08
+	func(cpu *Z80Cpu) { handler_add_R_16(cpu, &cpu.H, &cpu.L, pack_regcouple(cpu.B, cpu.C)) },       // 09
+	func(cpu *Z80Cpu) { handler_ld_R_MEM_8(cpu, &cpu.A, pack_regcouple(cpu.B, cpu.C)) },             // 0A
+	func(cpu *Z80Cpu) { handler_dec_R_16(cpu, &cpu.B, &cpu.C) },                                     // 0B
+	func(cpu *Z80Cpu) { handler_inc_R_8(cpu, &cpu.C) },                                              // 0C
+	func(cpu *Z80Cpu) { handler_dec_R_8(cpu, &cpu.C) },                                              // 0D
+	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.C, cpu.getPC8()) },                                 // 0E
+	func(cpu *Z80Cpu) { handler_rrc_R(cpu, &cpu.A); cpu.flagWasZero = false /* rrca */ },            // 0F
 	func(cpu *Z80Cpu) { handler_stop() },                                                            // 10
-	func(cpu *Z80Cpu) { handler_ld_R_16(cpu, &cpu.d, &cpu.e, cpu.getPC16()) },                       // 11
-	func(cpu *Z80Cpu) { handler_ld_MEM_8(cpu, pack_regcouple(cpu.d, cpu.e), cpu.a) },                // 12
-	func(cpu *Z80Cpu) { handler_inc_R_16(cpu, &cpu.d, &cpu.e) },                                     // 13
-	func(cpu *Z80Cpu) { handler_inc_R_8(cpu, &cpu.d) },                                              // 14
-	func(cpu *Z80Cpu) { handler_dec_R_8(cpu, &cpu.d) },                                              // 15
-	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.d, cpu.getPC8()) },                                 // 16
-	func(cpu *Z80Cpu) { handler_rl_R(cpu, &cpu.a); cpu.flagWasZero = false /* rla */ },              // 17
-	func(cpu *Z80Cpu) { handler_jr(cpu, int8(cpu.Mem.Read(cpu.pc))) },                               // 18
-	func(cpu *Z80Cpu) { handler_add_R_16(cpu, &cpu.h, &cpu.l, pack_regcouple(cpu.d, cpu.e)) },       // 19
-	func(cpu *Z80Cpu) { handler_ld_R_MEM_8(cpu, &cpu.a, pack_regcouple(cpu.d, cpu.e)) },             // 1A
-	func(cpu *Z80Cpu) { handler_dec_R_16(cpu, &cpu.d, &cpu.e) },                                     // 1B
-	func(cpu *Z80Cpu) { handler_inc_R_8(cpu, &cpu.e) },                                              // 1C
-	func(cpu *Z80Cpu) { handler_dec_R_8(cpu, &cpu.e) },                                              // 1D
-	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.e, cpu.getPC8()) },                                 // 1E
-	func(cpu *Z80Cpu) { handler_rr_R(cpu, &cpu.a); cpu.flagWasZero = false /* rra */ },              // 1F
-	func(cpu *Z80Cpu) { handler_jr_IF(cpu, int8(cpu.Mem.Read(cpu.pc)), !cpu.flagWasZero) },          // 20
-	func(cpu *Z80Cpu) { handler_ld_R_16(cpu, &cpu.h, &cpu.l, cpu.getPC16()) },                       // 21
-	func(cpu *Z80Cpu) { handler_ldi_MEM_R(cpu, pack_regcouple(cpu.h, cpu.l), cpu.a) },               // 22
-	func(cpu *Z80Cpu) { handler_inc_R_16(cpu, &cpu.h, &cpu.l) },                                     // 23
-	func(cpu *Z80Cpu) { handler_inc_R_8(cpu, &cpu.h) },                                              // 24
-	func(cpu *Z80Cpu) { handler_dec_R_8(cpu, &cpu.h) },                                              // 25
-	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.h, cpu.getPC8()) },                                 // 26
+	func(cpu *Z80Cpu) { handler_ld_R_16(cpu, &cpu.D, &cpu.E, cpu.getPC16()) },                       // 11
+	func(cpu *Z80Cpu) { handler_ld_MEM_8(cpu, pack_regcouple(cpu.D, cpu.E), cpu.A) },                // 12
+	func(cpu *Z80Cpu) { handler_inc_R_16(cpu, &cpu.D, &cpu.E) },                                     // 13
+	func(cpu *Z80Cpu) { handler_inc_R_8(cpu, &cpu.D) },                                              // 14
+	func(cpu *Z80Cpu) { handler_dec_R_8(cpu, &cpu.D) },                                              // 15
+	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.D, cpu.getPC8()) },                                 // 16
+	func(cpu *Z80Cpu) { handler_rl_R(cpu, &cpu.A); cpu.flagWasZero = false /* rla */ },              // 17
+	func(cpu *Z80Cpu) { handler_jr(cpu, int8(cpu.Mem.Read(cpu.PC))) },                               // 18
+	func(cpu *Z80Cpu) { handler_add_R_16(cpu, &cpu.H, &cpu.L, pack_regcouple(cpu.D, cpu.E)) },       // 19
+	func(cpu *Z80Cpu) { handler_ld_R_MEM_8(cpu, &cpu.A, pack_regcouple(cpu.D, cpu.E)) },             // 1A
+	func(cpu *Z80Cpu) { handler_dec_R_16(cpu, &cpu.D, &cpu.E) },                                     // 1B
+	func(cpu *Z80Cpu) { handler_inc_R_8(cpu, &cpu.E) },                                              // 1C
+	func(cpu *Z80Cpu) { handler_dec_R_8(cpu, &cpu.E) },                                              // 1D
+	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.E, cpu.getPC8()) },                                 // 1E
+	func(cpu *Z80Cpu) { handler_rr_R(cpu, &cpu.A); cpu.flagWasZero = false /* rra */ },              // 1F
+	func(cpu *Z80Cpu) { handler_jr_IF(cpu, int8(cpu.Mem.Read(cpu.PC)), !cpu.flagWasZero) },          // 20
+	func(cpu *Z80Cpu) { handler_ld_R_16(cpu, &cpu.H, &cpu.L, cpu.getPC16()) },                       // 21
+	func(cpu *Z80Cpu) { handler_ldi_MEM_R(cpu, pack_regcouple(cpu.H, cpu.L), cpu.A) },               // 22
+	func(cpu *Z80Cpu) { handler_inc_R_16(cpu, &cpu.H, &cpu.L) },                                     // 23
+	func(cpu *Z80Cpu) { handler_inc_R_8(cpu, &cpu.H) },                                              // 24
+	func(cpu *Z80Cpu) { handler_dec_R_8(cpu, &cpu.H) },                                              // 25
+	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.H, cpu.getPC8()) },                                 // 26
 	func(cpu *Z80Cpu) { handler_daa(cpu) },                                                          // 27
-	func(cpu *Z80Cpu) { handler_jr_IF(cpu, int8(cpu.Mem.Read(cpu.pc)), cpu.flagWasZero) },           // 28
-	func(cpu *Z80Cpu) { handler_add_R_16(cpu, &cpu.h, &cpu.l, pack_regcouple(cpu.h, cpu.l)) },       // 29
-	func(cpu *Z80Cpu) { handler_ldi_R_MEM(cpu, &cpu.a, pack_regcouple(cpu.h, cpu.l)) },              // 2A
-	func(cpu *Z80Cpu) { handler_dec_R_16(cpu, &cpu.h, &cpu.l) },                                     // 2B
-	func(cpu *Z80Cpu) { handler_inc_R_8(cpu, &cpu.l) },                                              // 2C
-	func(cpu *Z80Cpu) { handler_dec_R_8(cpu, &cpu.l) },                                              // 2D
-	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.l, cpu.getPC8()) },                                 // 2E
+	func(cpu *Z80Cpu) { handler_jr_IF(cpu, int8(cpu.Mem.Read(cpu.PC)), cpu.flagWasZero) },           // 28
+	func(cpu *Z80Cpu) { handler_add_R_16(cpu, &cpu.H, &cpu.L, pack_regcouple(cpu.H, cpu.L)) },       // 29
+	func(cpu *Z80Cpu) { handler_ldi_R_MEM(cpu, &cpu.A, pack_regcouple(cpu.H, cpu.L)) },              // 2A
+	func(cpu *Z80Cpu) { handler_dec_R_16(cpu, &cpu.H, &cpu.L) },                                     // 2B
+	func(cpu *Z80Cpu) { handler_inc_R_8(cpu, &cpu.L) },                                              // 2C
+	func(cpu *Z80Cpu) { handler_dec_R_8(cpu, &cpu.L) },                                              // 2D
+	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.L, cpu.getPC8()) },                                 // 2E
 	func(cpu *Z80Cpu) { handler_cpl(cpu) },                                                          // 2F
-	func(cpu *Z80Cpu) { handler_jr_IF(cpu, int8(cpu.Mem.Read(cpu.pc)), !cpu.flagCarry) },            // 30
-	func(cpu *Z80Cpu) { handler_ld_R_16_2(cpu, &cpu.sp, cpu.getPC16()) },                            // 31
-	func(cpu *Z80Cpu) { handler_ldd_MEM_R(cpu, pack_regcouple(cpu.h, cpu.l), cpu.a) },               // 32
-	func(cpu *Z80Cpu) { handler_inc_R_16_2(cpu, &cpu.sp) },                                          // 33
+	func(cpu *Z80Cpu) { handler_jr_IF(cpu, int8(cpu.Mem.Read(cpu.PC)), !cpu.flagCarry) },            // 30
+	func(cpu *Z80Cpu) { handler_ld_R_16_2(cpu, &cpu.SP, cpu.getPC16()) },                            // 31
+	func(cpu *Z80Cpu) { handler_ldd_MEM_R(cpu, pack_regcouple(cpu.H, cpu.L), cpu.A) },               // 32
+	func(cpu *Z80Cpu) { handler_inc_R_16_2(cpu, &cpu.SP) },                                          // 33
 	func(cpu *Z80Cpu) { panic("Opcode 34 unimplemented") },                                          // 34
 	func(cpu *Z80Cpu) { panic("Opcode 35 unimplemented") },                                          // 35
-	func(cpu *Z80Cpu) { handler_ld_MEM_8(cpu, pack_regcouple(cpu.h, cpu.l), cpu.getPC8()) },         // 36
+	func(cpu *Z80Cpu) { handler_ld_MEM_8(cpu, pack_regcouple(cpu.H, cpu.L), cpu.getPC8()) },         // 36
 	func(cpu *Z80Cpu) { panic("Opcode 37 unimplemented") },                                          // 37
-	func(cpu *Z80Cpu) { handler_jr_IF(cpu, int8(cpu.Mem.Read(cpu.pc)), cpu.flagCarry) },             // 38
-	func(cpu *Z80Cpu) { handler_add_R_16(cpu, &cpu.h, &cpu.l, cpu.sp) },                             // 39
-	func(cpu *Z80Cpu) { handler_ldd_R_MEM(cpu, &cpu.a, pack_regcouple(cpu.h, cpu.l)) },              // 3A
-	func(cpu *Z80Cpu) { handler_dec_R_16_2(cpu, &cpu.sp) },                                          // 3B
-	func(cpu *Z80Cpu) { handler_inc_R_8(cpu, &cpu.a) },                                              // 3C
-	func(cpu *Z80Cpu) { handler_dec_R_8(cpu, &cpu.a) },                                              // 3D
-	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.a, cpu.getPC8()) },                                 // 3E
+	func(cpu *Z80Cpu) { handler_jr_IF(cpu, int8(cpu.Mem.Read(cpu.PC)), cpu.flagCarry) },             // 38
+	func(cpu *Z80Cpu) { handler_add_R_16(cpu, &cpu.H, &cpu.L, cpu.SP) },                             // 39
+	func(cpu *Z80Cpu) { handler_ldd_R_MEM(cpu, &cpu.A, pack_regcouple(cpu.H, cpu.L)) },              // 3A
+	func(cpu *Z80Cpu) { handler_dec_R_16_2(cpu, &cpu.SP) },                                          // 3B
+	func(cpu *Z80Cpu) { handler_inc_R_8(cpu, &cpu.A) },                                              // 3C
+	func(cpu *Z80Cpu) { handler_dec_R_8(cpu, &cpu.A) },                                              // 3D
+	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.A, cpu.getPC8()) },                                 // 3E
 	func(cpu *Z80Cpu) { panic("Opcode 3F unimplemented") },                                          // 3F
-	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.b, cpu.b) },                                        // 40
-	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.b, cpu.c) },                                        // 41
-	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.b, cpu.d) },                                        // 42
-	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.b, cpu.e) },                                        // 43
-	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.b, cpu.h) },                                        // 44
-	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.b, cpu.l) },                                        // 45
-	func(cpu *Z80Cpu) { handler_ld_R_MEM_8(cpu, &cpu.b, pack_regcouple(cpu.h, cpu.l)) },             // 46
-	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.b, cpu.a) },                                        // 47
-	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.c, cpu.b) },                                        // 48
-	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.c, cpu.c) },                                        // 49
-	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.c, cpu.d) },                                        // 4A
-	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.c, cpu.e) },                                        // 4B
-	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.c, cpu.h) },                                        // 4C
-	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.c, cpu.l) },                                        // 4D
-	func(cpu *Z80Cpu) { handler_ld_R_MEM_8(cpu, &cpu.c, pack_regcouple(cpu.h, cpu.l)) },             // 4E
-	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.c, cpu.a) },                                        // 4F
-	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.d, cpu.b) },                                        // 50
-	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.d, cpu.c) },                                        // 51
-	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.d, cpu.d) },                                        // 52
-	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.d, cpu.e) },                                        // 53
-	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.d, cpu.h) },                                        // 54
-	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.d, cpu.l) },                                        // 55
-	func(cpu *Z80Cpu) { handler_ld_R_MEM_8(cpu, &cpu.d, pack_regcouple(cpu.h, cpu.l)) },             // 56
-	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.d, cpu.a) },                                        // 57
-	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.e, cpu.b) },                                        // 58
-	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.e, cpu.c) },                                        // 59
-	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.e, cpu.d) },                                        // 5A
-	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.e, cpu.e) },                                        // 5B
-	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.e, cpu.h) },                                        // 5C
-	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.e, cpu.l) },                                        // 5D
-	func(cpu *Z80Cpu) { handler_ld_R_MEM_8(cpu, &cpu.e, pack_regcouple(cpu.h, cpu.l)) },             // 5E
-	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.e, cpu.a) },                                        // 5F
-	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.h, cpu.b) },                                        // 60
-	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.h, cpu.c) },                                        // 61
-	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.h, cpu.d) },                                        // 62
-	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.h, cpu.e) },                                        // 63
-	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.h, cpu.h) },                                        // 64
-	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.h, cpu.l) },                                        // 65
-	func(cpu *Z80Cpu) { handler_ld_R_MEM_8(cpu, &cpu.h, pack_regcouple(cpu.h, cpu.l)) },             // 66
-	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.h, cpu.a) },                                        // 67
-	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.l, cpu.b) },                                        // 68
-	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.l, cpu.c) },                                        // 69
-	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.l, cpu.d) },                                        // 6A
-	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.l, cpu.e) },                                        // 6B
-	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.l, cpu.h) },                                        // 6C
-	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.l, cpu.l) },                                        // 6D
-	func(cpu *Z80Cpu) { handler_ld_R_MEM_8(cpu, &cpu.l, pack_regcouple(cpu.h, cpu.l)) },             // 6E
-	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.l, cpu.a) },                                        // 6F
-	func(cpu *Z80Cpu) { handler_ld_MEM_8(cpu, pack_regcouple(cpu.h, cpu.l), cpu.b) },                // 70
-	func(cpu *Z80Cpu) { handler_ld_MEM_8(cpu, pack_regcouple(cpu.h, cpu.l), cpu.c) },                // 71
-	func(cpu *Z80Cpu) { handler_ld_MEM_8(cpu, pack_regcouple(cpu.h, cpu.l), cpu.d) },                // 72
-	func(cpu *Z80Cpu) { handler_ld_MEM_8(cpu, pack_regcouple(cpu.h, cpu.l), cpu.e) },                // 73
-	func(cpu *Z80Cpu) { handler_ld_MEM_8(cpu, pack_regcouple(cpu.h, cpu.l), cpu.h) },                // 74
-	func(cpu *Z80Cpu) { handler_ld_MEM_8(cpu, pack_regcouple(cpu.h, cpu.l), cpu.l) },                // 75
+	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.B, cpu.B) },                                        // 40
+	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.B, cpu.C) },                                        // 41
+	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.B, cpu.D) },                                        // 42
+	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.B, cpu.E) },                                        // 43
+	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.B, cpu.H) },                                        // 44
+	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.B, cpu.L) },                                        // 45
+	func(cpu *Z80Cpu) { handler_ld_R_MEM_8(cpu, &cpu.B, pack_regcouple(cpu.H, cpu.L)) },             // 46
+	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.B, cpu.A) },                                        // 47
+	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.C, cpu.B) },                                        // 48
+	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.C, cpu.C) },                                        // 49
+	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.C, cpu.D) },                                        // 4A
+	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.C, cpu.E) },                                        // 4B
+	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.C, cpu.H) },                                        // 4C
+	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.C, cpu.L) },                                        // 4D
+	func(cpu *Z80Cpu) { handler_ld_R_MEM_8(cpu, &cpu.C, pack_regcouple(cpu.H, cpu.L)) },             // 4E
+	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.C, cpu.A) },                                        // 4F
+	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.D, cpu.B) },                                        // 50
+	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.D, cpu.C) },                                        // 51
+	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.D, cpu.D) },                                        // 52
+	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.D, cpu.E) },                                        // 53
+	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.D, cpu.H) },                                        // 54
+	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.D, cpu.L) },                                        // 55
+	func(cpu *Z80Cpu) { handler_ld_R_MEM_8(cpu, &cpu.D, pack_regcouple(cpu.H, cpu.L)) },             // 56
+	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.D, cpu.A) },                                        // 57
+	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.E, cpu.B) },                                        // 58
+	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.E, cpu.C) },                                        // 59
+	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.E, cpu.D) },                                        // 5A
+	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.E, cpu.E) },                                        // 5B
+	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.E, cpu.H) },                                        // 5C
+	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.E, cpu.L) },                                        // 5D
+	func(cpu *Z80Cpu) { handler_ld_R_MEM_8(cpu, &cpu.E, pack_regcouple(cpu.H, cpu.L)) },             // 5E
+	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.E, cpu.A) },                                        // 5F
+	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.H, cpu.B) },                                        // 60
+	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.H, cpu.C) },                                        // 61
+	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.H, cpu.D) },                                        // 62
+	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.H, cpu.E) },                                        // 63
+	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.H, cpu.H) },                                        // 64
+	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.H, cpu.L) },                                        // 65
+	func(cpu *Z80Cpu) { handler_ld_R_MEM_8(cpu, &cpu.H, pack_regcouple(cpu.H, cpu.L)) },             // 66
+	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.H, cpu.A) },                                        // 67
+	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.L, cpu.B) },                                        // 68
+	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.L, cpu.C) },                                        // 69
+	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.L, cpu.D) },                                        // 6A
+	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.L, cpu.E) },                                        // 6B
+	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.L, cpu.H) },                                        // 6C
+	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.L, cpu.L) },                                        // 6D
+	func(cpu *Z80Cpu) { handler_ld_R_MEM_8(cpu, &cpu.L, pack_regcouple(cpu.H, cpu.L)) },             // 6E
+	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.L, cpu.A) },                                        // 6F
+	func(cpu *Z80Cpu) { handler_ld_MEM_8(cpu, pack_regcouple(cpu.H, cpu.L), cpu.B) },                // 70
+	func(cpu *Z80Cpu) { handler_ld_MEM_8(cpu, pack_regcouple(cpu.H, cpu.L), cpu.C) },                // 71
+	func(cpu *Z80Cpu) { handler_ld_MEM_8(cpu, pack_regcouple(cpu.H, cpu.L), cpu.D) },                // 72
+	func(cpu *Z80Cpu) { handler_ld_MEM_8(cpu, pack_regcouple(cpu.H, cpu.L), cpu.E) },                // 73
+	func(cpu *Z80Cpu) { handler_ld_MEM_8(cpu, pack_regcouple(cpu.H, cpu.L), cpu.H) },                // 74
+	func(cpu *Z80Cpu) { handler_ld_MEM_8(cpu, pack_regcouple(cpu.H, cpu.L), cpu.L) },                // 75
 	func(cpu *Z80Cpu) { handler_halt(cpu) },                                                         // 76
-	func(cpu *Z80Cpu) { handler_ld_MEM_8(cpu, pack_regcouple(cpu.h, cpu.l), cpu.a) },                // 77
-	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.a, cpu.b) },                                        // 78
-	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.a, cpu.c) },                                        // 79
-	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.a, cpu.d) },                                        // 7A
-	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.a, cpu.e) },                                        // 7B
-	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.a, cpu.h) },                                        // 7C
-	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.a, cpu.l) },                                        // 7D
-	func(cpu *Z80Cpu) { handler_ld_R_MEM_8(cpu, &cpu.a, pack_regcouple(cpu.h, cpu.l)) },             // 7E
-	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.a, cpu.a) },                                        // 7F
-	func(cpu *Z80Cpu) { handler_add_R_8(cpu, &cpu.a, cpu.b) },                                       // 80
-	func(cpu *Z80Cpu) { handler_add_R_8(cpu, &cpu.a, cpu.c) },                                       // 81
-	func(cpu *Z80Cpu) { handler_add_R_8(cpu, &cpu.a, cpu.d) },                                       // 82
-	func(cpu *Z80Cpu) { handler_add_R_8(cpu, &cpu.a, cpu.e) },                                       // 83
-	func(cpu *Z80Cpu) { handler_add_R_8(cpu, &cpu.a, cpu.h) },                                       // 84
-	func(cpu *Z80Cpu) { handler_add_R_8(cpu, &cpu.a, cpu.l) },                                       // 85
-	func(cpu *Z80Cpu) { handler_add_R_8(cpu, &cpu.a, cpu.Mem.Read(pack_regcouple(cpu.h, cpu.l))) },  // 86
-	func(cpu *Z80Cpu) { handler_add_R_8(cpu, &cpu.a, cpu.a) },                                       // 87
+	func(cpu *Z80Cpu) { handler_ld_MEM_8(cpu, pack_regcouple(cpu.H, cpu.L), cpu.A) },                // 77
+	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.A, cpu.B) },                                        // 78
+	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.A, cpu.C) },                                        // 79
+	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.A, cpu.D) },                                        // 7A
+	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.A, cpu.E) },                                        // 7B
+	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.A, cpu.H) },                                        // 7C
+	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.A, cpu.L) },                                        // 7D
+	func(cpu *Z80Cpu) { handler_ld_R_MEM_8(cpu, &cpu.A, pack_regcouple(cpu.H, cpu.L)) },             // 7E
+	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.A, cpu.A) },                                        // 7F
+	func(cpu *Z80Cpu) { handler_add_R_8(cpu, &cpu.A, cpu.B) },                                       // 80
+	func(cpu *Z80Cpu) { handler_add_R_8(cpu, &cpu.A, cpu.C) },                                       // 81
+	func(cpu *Z80Cpu) { handler_add_R_8(cpu, &cpu.A, cpu.D) },                                       // 82
+	func(cpu *Z80Cpu) { handler_add_R_8(cpu, &cpu.A, cpu.E) },                                       // 83
+	func(cpu *Z80Cpu) { handler_add_R_8(cpu, &cpu.A, cpu.H) },                                       // 84
+	func(cpu *Z80Cpu) { handler_add_R_8(cpu, &cpu.A, cpu.L) },                                       // 85
+	func(cpu *Z80Cpu) { handler_add_R_8(cpu, &cpu.A, cpu.Mem.Read(pack_regcouple(cpu.H, cpu.L))) },  // 86
+	func(cpu *Z80Cpu) { handler_add_R_8(cpu, &cpu.A, cpu.A) },                                       // 87
 	func(cpu *Z80Cpu) { panic("Opcode 88 unimplemented") },                                          // 88
 	func(cpu *Z80Cpu) { panic("Opcode 89 unimplemented") },                                          // 89
 	func(cpu *Z80Cpu) { panic("Opcode 8A unimplemented") },                                          // 8A
@@ -731,14 +706,14 @@ var handlers = [256]func(*Z80Cpu){
 	func(cpu *Z80Cpu) { panic("Opcode 8D unimplemented") },                                          // 8D
 	func(cpu *Z80Cpu) { panic("Opcode 8E unimplemented") },                                          // 8E
 	func(cpu *Z80Cpu) { panic("Opcode 8F unimplemented") },                                          // 8F
-	func(cpu *Z80Cpu) { handler_sub_R_8(cpu, &cpu.a, cpu.b) },                                       // 90
-	func(cpu *Z80Cpu) { handler_sub_R_8(cpu, &cpu.a, cpu.c) },                                       // 91
-	func(cpu *Z80Cpu) { handler_sub_R_8(cpu, &cpu.a, cpu.d) },                                       // 92
-	func(cpu *Z80Cpu) { handler_sub_R_8(cpu, &cpu.a, cpu.e) },                                       // 93
-	func(cpu *Z80Cpu) { handler_sub_R_8(cpu, &cpu.a, cpu.h) },                                       // 94
-	func(cpu *Z80Cpu) { handler_sub_R_8(cpu, &cpu.a, cpu.l) },                                       // 95
-	func(cpu *Z80Cpu) { handler_sub_R_8(cpu, &cpu.a, cpu.Mem.Read(pack_regcouple(cpu.h, cpu.l))) },  // 96
-	func(cpu *Z80Cpu) { handler_sub_R_8(cpu, &cpu.a, cpu.a) },                                       // 97
+	func(cpu *Z80Cpu) { handler_sub_R_8(cpu, &cpu.A, cpu.B) },                                       // 90
+	func(cpu *Z80Cpu) { handler_sub_R_8(cpu, &cpu.A, cpu.C) },                                       // 91
+	func(cpu *Z80Cpu) { handler_sub_R_8(cpu, &cpu.A, cpu.D) },                                       // 92
+	func(cpu *Z80Cpu) { handler_sub_R_8(cpu, &cpu.A, cpu.E) },                                       // 93
+	func(cpu *Z80Cpu) { handler_sub_R_8(cpu, &cpu.A, cpu.H) },                                       // 94
+	func(cpu *Z80Cpu) { handler_sub_R_8(cpu, &cpu.A, cpu.L) },                                       // 95
+	func(cpu *Z80Cpu) { handler_sub_R_8(cpu, &cpu.A, cpu.Mem.Read(pack_regcouple(cpu.H, cpu.L))) },  // 96
+	func(cpu *Z80Cpu) { handler_sub_R_8(cpu, &cpu.A, cpu.A) },                                       // 97
 	func(cpu *Z80Cpu) { panic("Opcode 98 unimplemented") },                                          // 98
 	func(cpu *Z80Cpu) { panic("Opcode 99 unimplemented") },                                          // 99
 	func(cpu *Z80Cpu) { panic("Opcode 9A unimplemented") },                                          // 9A
@@ -755,37 +730,37 @@ var handlers = [256]func(*Z80Cpu){
 	func(cpu *Z80Cpu) { panic("Opcode A5 unimplemented") },                                          // A5
 	func(cpu *Z80Cpu) { panic("Opcode A6 unimplemented") },                                          // A6
 	func(cpu *Z80Cpu) { panic("Opcode A7 unimplemented") },                                          // A7
-	func(cpu *Z80Cpu) { handler_xor_R_8(cpu, &cpu.a, cpu.b) },                                       // A8
-	func(cpu *Z80Cpu) { handler_xor_R_8(cpu, &cpu.a, cpu.c) },                                       // A9
-	func(cpu *Z80Cpu) { handler_xor_R_8(cpu, &cpu.a, cpu.d) },                                       // AA
-	func(cpu *Z80Cpu) { handler_xor_R_8(cpu, &cpu.a, cpu.e) },                                       // AB
-	func(cpu *Z80Cpu) { handler_xor_R_8(cpu, &cpu.a, cpu.h) },                                       // AC
-	func(cpu *Z80Cpu) { handler_xor_R_8(cpu, &cpu.a, cpu.l) },                                       // AD
-	func(cpu *Z80Cpu) { handler_xor_R_8(cpu, &cpu.a, cpu.Mem.Read(pack_regcouple(cpu.h, cpu.l))) },  // AE
-	func(cpu *Z80Cpu) { handler_xor_R_8(cpu, &cpu.a, cpu.a) },                                       // AF
-	func(cpu *Z80Cpu) { handler_or_R_8(cpu, &cpu.a, cpu.b) },                                        // B0
-	func(cpu *Z80Cpu) { handler_or_R_8(cpu, &cpu.a, cpu.c) },                                        // B1
-	func(cpu *Z80Cpu) { handler_or_R_8(cpu, &cpu.a, cpu.d) },                                        // B2
-	func(cpu *Z80Cpu) { handler_or_R_8(cpu, &cpu.a, cpu.e) },                                        // B3
-	func(cpu *Z80Cpu) { handler_or_R_8(cpu, &cpu.a, cpu.h) },                                        // B4
-	func(cpu *Z80Cpu) { handler_or_R_8(cpu, &cpu.a, cpu.l) },                                        // B5
-	func(cpu *Z80Cpu) { handler_or_R_8(cpu, &cpu.a, cpu.Mem.Read(pack_regcouple(cpu.h, cpu.l))) },   // B6
-	func(cpu *Z80Cpu) { handler_or_R_8(cpu, &cpu.a, cpu.a) },                                        // B7
-	func(cpu *Z80Cpu) { handler_cp(cpu, cpu.a, cpu.b) },                                             // B8
-	func(cpu *Z80Cpu) { handler_cp(cpu, cpu.a, cpu.c) },                                             // B9
-	func(cpu *Z80Cpu) { handler_cp(cpu, cpu.a, cpu.d) },                                             // BA
-	func(cpu *Z80Cpu) { handler_cp(cpu, cpu.a, cpu.e) },                                             // BB
-	func(cpu *Z80Cpu) { handler_cp(cpu, cpu.a, cpu.h) },                                             // BC
-	func(cpu *Z80Cpu) { handler_cp(cpu, cpu.a, cpu.l) },                                             // BD
-	func(cpu *Z80Cpu) { handler_cp(cpu, cpu.a, cpu.Mem.Read(pack_regcouple(cpu.h, cpu.l))) },        // BE
-	func(cpu *Z80Cpu) { handler_cp(cpu, cpu.a, cpu.a) },                                             // BF
+	func(cpu *Z80Cpu) { handler_xor_R_8(cpu, &cpu.A, cpu.B) },                                       // A8
+	func(cpu *Z80Cpu) { handler_xor_R_8(cpu, &cpu.A, cpu.C) },                                       // A9
+	func(cpu *Z80Cpu) { handler_xor_R_8(cpu, &cpu.A, cpu.D) },                                       // AA
+	func(cpu *Z80Cpu) { handler_xor_R_8(cpu, &cpu.A, cpu.E) },                                       // AB
+	func(cpu *Z80Cpu) { handler_xor_R_8(cpu, &cpu.A, cpu.H) },                                       // AC
+	func(cpu *Z80Cpu) { handler_xor_R_8(cpu, &cpu.A, cpu.L) },                                       // AD
+	func(cpu *Z80Cpu) { handler_xor_R_8(cpu, &cpu.A, cpu.Mem.Read(pack_regcouple(cpu.H, cpu.L))) },  // AE
+	func(cpu *Z80Cpu) { handler_xor_R_8(cpu, &cpu.A, cpu.A) },                                       // AF
+	func(cpu *Z80Cpu) { handler_or_R_8(cpu, &cpu.A, cpu.B) },                                        // B0
+	func(cpu *Z80Cpu) { handler_or_R_8(cpu, &cpu.A, cpu.C) },                                        // B1
+	func(cpu *Z80Cpu) { handler_or_R_8(cpu, &cpu.A, cpu.D) },                                        // B2
+	func(cpu *Z80Cpu) { handler_or_R_8(cpu, &cpu.A, cpu.E) },                                        // B3
+	func(cpu *Z80Cpu) { handler_or_R_8(cpu, &cpu.A, cpu.H) },                                        // B4
+	func(cpu *Z80Cpu) { handler_or_R_8(cpu, &cpu.A, cpu.L) },                                        // B5
+	func(cpu *Z80Cpu) { handler_or_R_8(cpu, &cpu.A, cpu.Mem.Read(pack_regcouple(cpu.H, cpu.L))) },   // B6
+	func(cpu *Z80Cpu) { handler_or_R_8(cpu, &cpu.A, cpu.A) },                                        // B7
+	func(cpu *Z80Cpu) { handler_cp(cpu, cpu.A, cpu.B) },                                             // B8
+	func(cpu *Z80Cpu) { handler_cp(cpu, cpu.A, cpu.C) },                                             // B9
+	func(cpu *Z80Cpu) { handler_cp(cpu, cpu.A, cpu.D) },                                             // BA
+	func(cpu *Z80Cpu) { handler_cp(cpu, cpu.A, cpu.E) },                                             // BB
+	func(cpu *Z80Cpu) { handler_cp(cpu, cpu.A, cpu.H) },                                             // BC
+	func(cpu *Z80Cpu) { handler_cp(cpu, cpu.A, cpu.L) },                                             // BD
+	func(cpu *Z80Cpu) { handler_cp(cpu, cpu.A, cpu.Mem.Read(pack_regcouple(cpu.H, cpu.L))) },        // BE
+	func(cpu *Z80Cpu) { handler_cp(cpu, cpu.A, cpu.A) },                                             // BF
 	func(cpu *Z80Cpu) { panic("Opcode C0 unimplemented") },                                          // C0
-	func(cpu *Z80Cpu) { cpu.b, cpu.c = unpack_regcouple(cpu.StackPop16()) },                         // C1
+	func(cpu *Z80Cpu) { cpu.B, cpu.C = unpack_regcouple(cpu.StackPop16()) },                         // C1
 	func(cpu *Z80Cpu) { handler_jp_IF(cpu, cpu.getPC16(), !cpu.flagWasZero) },                       // C2
 	func(cpu *Z80Cpu) { handler_jp(cpu, cpu.getPC16()) },                                            // C3
 	func(cpu *Z80Cpu) { panic("Opcode C4 unimplemented") },                                          // C4
-	func(cpu *Z80Cpu) { cpu.StackPush16(pack_regcouple(cpu.b, cpu.c)) },                             // C5
-	func(cpu *Z80Cpu) { handler_add_R_8(cpu, &cpu.a, cpu.getPC8()) },                                // C6
+	func(cpu *Z80Cpu) { cpu.StackPush16(pack_regcouple(cpu.B, cpu.C)) },                             // C5
+	func(cpu *Z80Cpu) { handler_add_R_8(cpu, &cpu.A, cpu.getPC8()) },                                // C6
 	func(cpu *Z80Cpu) { panic("Opcode C7 unimplemented") },                                          // C7
 	func(cpu *Z80Cpu) { panic("Opcode C8 unimplemented") },                                          // C8
 	func(cpu *Z80Cpu) { handler_ret(cpu) },                                                          // C9
@@ -793,14 +768,14 @@ var handlers = [256]func(*Z80Cpu){
 	func(cpu *Z80Cpu) { cb_handlers[cpu.getPC8()](cpu) },                                            // CB
 	func(cpu *Z80Cpu) { panic("Opcode CC unimplemented") },                                          // CC
 	func(cpu *Z80Cpu) { handler_call(cpu) },                                                         // CD
-	func(cpu *Z80Cpu) { handler_adc_R_8(cpu, &cpu.a, cpu.getPC8()) },                                // CE
+	func(cpu *Z80Cpu) { handler_adc_R_8(cpu, &cpu.A, cpu.getPC8()) },                                // CE
 	func(cpu *Z80Cpu) { panic("Opcode CF unimplemented") },                                          // CF
 	func(cpu *Z80Cpu) { panic("Opcode D0 unimplemented") },                                          // D0
-	func(cpu *Z80Cpu) { cpu.d, cpu.e = unpack_regcouple(cpu.StackPop16()) },                         // D1
+	func(cpu *Z80Cpu) { cpu.D, cpu.E = unpack_regcouple(cpu.StackPop16()) },                         // D1
 	func(cpu *Z80Cpu) { handler_jp_IF(cpu, cpu.getPC16(), !cpu.flagCarry) },                         // D2
-	func(cpu *Z80Cpu) { handler_out(cpu, cpu.a) },                                                   // D3
+	func(cpu *Z80Cpu) { handler_out(cpu, cpu.A) },                                                   // D3
 	func(cpu *Z80Cpu) { panic("Opcode D4 unimplemented") },                                          // D4
-	func(cpu *Z80Cpu) { cpu.StackPush16(pack_regcouple(cpu.d, cpu.e)) },                             // D5
+	func(cpu *Z80Cpu) { cpu.StackPush16(pack_regcouple(cpu.D, cpu.E)) },                             // D5
 	func(cpu *Z80Cpu) { panic("Opcode D6 unimplemented") },                                          // D6
 	func(cpu *Z80Cpu) { panic("Opcode D7 unimplemented") },                                          // D7
 	func(cpu *Z80Cpu) { panic("Opcode D8 unimplemented") },                                          // D8
@@ -811,28 +786,28 @@ var handlers = [256]func(*Z80Cpu){
 	func(cpu *Z80Cpu) { panic("Opcode DD unimplemented") },                                          // DD
 	func(cpu *Z80Cpu) { panic("Opcode DE unimplemented") },                                          // DE
 	func(cpu *Z80Cpu) { panic("Opcode DF unimplemented") },                                          // DF
-	func(cpu *Z80Cpu) { handler_ld_MEM_8(cpu, uint16(cpu.getPC8())+0xFF00, cpu.a) },                 // E0
-	func(cpu *Z80Cpu) { cpu.h, cpu.l = unpack_regcouple(cpu.StackPop16()) },                         // E1
-	func(cpu *Z80Cpu) { handler_ld_MEM_8(cpu, uint16(cpu.c)+0xFF00, cpu.a) },                        // E2
+	func(cpu *Z80Cpu) { handler_ld_MEM_8(cpu, uint16(cpu.getPC8())+0xFF00, cpu.A) },                 // E0
+	func(cpu *Z80Cpu) { cpu.H, cpu.L = unpack_regcouple(cpu.StackPop16()) },                         // E1
+	func(cpu *Z80Cpu) { handler_ld_MEM_8(cpu, uint16(cpu.C)+0xFF00, cpu.A) },                        // E2
 	func(cpu *Z80Cpu) { panic("Opcode E3 unimplemented") },                                          // E3
 	func(cpu *Z80Cpu) { panic("Opcode E4 unimplemented") },                                          // E4
-	func(cpu *Z80Cpu) { cpu.StackPush16(pack_regcouple(cpu.h, cpu.l)) },                             // E5
-	func(cpu *Z80Cpu) { handler_and_R_8(cpu, &cpu.a, cpu.getPC8()) },                                // E6
+	func(cpu *Z80Cpu) { cpu.StackPush16(pack_regcouple(cpu.H, cpu.L)) },                             // E5
+	func(cpu *Z80Cpu) { handler_and_R_8(cpu, &cpu.A, cpu.getPC8()) },                                // E6
 	func(cpu *Z80Cpu) { panic("Opcode E7 unimplemented") },                                          // E7
 	func(cpu *Z80Cpu) { panic("Opcode E8 unimplemented") },                                          // E8
-	func(cpu *Z80Cpu) { handler_jp(cpu, pack_regcouple(cpu.h, cpu.l)) },                             // E9
-	func(cpu *Z80Cpu) { handler_ld_MEM_8(cpu, cpu.getPC16(), cpu.a) },                               // EA
+	func(cpu *Z80Cpu) { handler_jp(cpu, pack_regcouple(cpu.H, cpu.L)) },                             // E9
+	func(cpu *Z80Cpu) { handler_ld_MEM_8(cpu, cpu.getPC16(), cpu.A) },                               // EA
 	func(cpu *Z80Cpu) { panic("Opcode EB unimplemented") },                                          // EB
 	func(cpu *Z80Cpu) { panic("Opcode EC unimplemented") },                                          // EC
 	func(cpu *Z80Cpu) { panic("Opcode ED unimplemented") },                                          // ED
 	func(cpu *Z80Cpu) { panic("Opcode EE unimplemented") },                                          // EE
 	func(cpu *Z80Cpu) { panic("Opcode EF unimplemented") },                                          // EF
-	func(cpu *Z80Cpu) { handler_ld_R_MEM_8(cpu, &cpu.a, uint16(cpu.getPC8())+0xFF00) },              // F0
-	func(cpu *Z80Cpu) { a, f := unpack_regcouple(cpu.StackPop16()); cpu.a = a; cpu.UnpackFlags(f) }, // F1
-	func(cpu *Z80Cpu) { handler_ld_R_MEM_8(cpu, &cpu.a, uint16(cpu.c)+0xFF00) },                     // F2
+	func(cpu *Z80Cpu) { handler_ld_R_MEM_8(cpu, &cpu.A, uint16(cpu.getPC8())+0xFF00) },              // F0
+	func(cpu *Z80Cpu) { a, f := unpack_regcouple(cpu.StackPop16()); cpu.A = a; cpu.UnpackFlags(f) }, // F1
+	func(cpu *Z80Cpu) { handler_ld_R_MEM_8(cpu, &cpu.A, uint16(cpu.C)+0xFF00) },                     // F2
 	func(cpu *Z80Cpu) { handler_di(cpu) },                                                           // F3
 	func(cpu *Z80Cpu) { panic("Opcode F4 unimplemented") },                                          // F4
-	func(cpu *Z80Cpu) { cpu.StackPush16(pack_regcouple(cpu.a, cpu.PackFlags())) },                   // F5
+	func(cpu *Z80Cpu) { cpu.StackPush16(pack_regcouple(cpu.A, cpu.PackFlags())) },                   // F5
 	func(cpu *Z80Cpu) { panic("Opcode F6 unimplemented") },                                          // F6
 	func(cpu *Z80Cpu) { panic("Opcode F7 unimplemented") },                                          // F7
 	func(cpu *Z80Cpu) { panic("Opcode F8 unimplemented") },                                          // F8
@@ -841,7 +816,7 @@ var handlers = [256]func(*Z80Cpu){
 	func(cpu *Z80Cpu) { handler_ei(cpu) },                                                           // FB
 	func(cpu *Z80Cpu) { panic("Opcode FC unimplemented") },                                          // FC
 	func(cpu *Z80Cpu) { panic("Opcode FD unimplemented") },                                          // FD
-	func(cpu *Z80Cpu) { handler_cp(cpu, cpu.a, cpu.getPC8()) },                                      // FE
+	func(cpu *Z80Cpu) { handler_cp(cpu, cpu.A, cpu.getPC8()) },                                      // FE
 	func(cpu *Z80Cpu) { panic("Opcode FF unimplemented") },                                          // FF
 }
 
@@ -862,14 +837,14 @@ var cb_handlers = [256]func(*Z80Cpu){
 	func(cpu *Z80Cpu) { panic("CB Opcode 0D unimplemented") },                             // 0D
 	func(cpu *Z80Cpu) { panic("CB Opcode 0E unimplemented") },                             // 0E
 	func(cpu *Z80Cpu) { panic("CB Opcode 0F unimplemented") },                             // 0F
-	func(cpu *Z80Cpu) { handler_rl_R(cpu, &cpu.b) },                                       // 10
-	func(cpu *Z80Cpu) { handler_rl_R(cpu, &cpu.c) },                                       // 11
-	func(cpu *Z80Cpu) { handler_rl_R(cpu, &cpu.d) },                                       // 12
-	func(cpu *Z80Cpu) { handler_rl_R(cpu, &cpu.e) },                                       // 13
-	func(cpu *Z80Cpu) { handler_rl_R(cpu, &cpu.h) },                                       // 14
-	func(cpu *Z80Cpu) { handler_rl_R(cpu, &cpu.l) },                                       // 15
-	func(cpu *Z80Cpu) { handler_rl_MEM(cpu, pack_regcouple(cpu.h, cpu.l)) },               // 16
-	func(cpu *Z80Cpu) { handler_rl_R(cpu, &cpu.a) },                                       // 17
+	func(cpu *Z80Cpu) { handler_rl_R(cpu, &cpu.B) },                                       // 10
+	func(cpu *Z80Cpu) { handler_rl_R(cpu, &cpu.C) },                                       // 11
+	func(cpu *Z80Cpu) { handler_rl_R(cpu, &cpu.D) },                                       // 12
+	func(cpu *Z80Cpu) { handler_rl_R(cpu, &cpu.E) },                                       // 13
+	func(cpu *Z80Cpu) { handler_rl_R(cpu, &cpu.H) },                                       // 14
+	func(cpu *Z80Cpu) { handler_rl_R(cpu, &cpu.L) },                                       // 15
+	func(cpu *Z80Cpu) { handler_rl_MEM(cpu, pack_regcouple(cpu.H, cpu.L)) },               // 16
+	func(cpu *Z80Cpu) { handler_rl_R(cpu, &cpu.A) },                                       // 17
 	func(cpu *Z80Cpu) { panic("CB Opcode 18 unimplemented") },                             // 18
 	func(cpu *Z80Cpu) { panic("CB Opcode 19 unimplemented") },                             // 19
 	func(cpu *Z80Cpu) { panic("CB Opcode 1A unimplemented") },                             // 1A
@@ -910,70 +885,70 @@ var cb_handlers = [256]func(*Z80Cpu){
 	func(cpu *Z80Cpu) { panic("CB Opcode 3D unimplemented") },                             // 3D
 	func(cpu *Z80Cpu) { panic("CB Opcode 3E unimplemented") },                             // 3E
 	func(cpu *Z80Cpu) { panic("CB Opcode 3F unimplemented") },                             // 3F
-	func(cpu *Z80Cpu) { handler_bit(cpu, 0, cpu.b) },                                      // 40
-	func(cpu *Z80Cpu) { handler_bit(cpu, 0, cpu.c) },                                      // 41
-	func(cpu *Z80Cpu) { handler_bit(cpu, 0, cpu.d) },                                      // 42
-	func(cpu *Z80Cpu) { handler_bit(cpu, 0, cpu.e) },                                      // 43
-	func(cpu *Z80Cpu) { handler_bit(cpu, 0, cpu.h) },                                      // 44
-	func(cpu *Z80Cpu) { handler_bit(cpu, 0, cpu.l) },                                      // 45
-	func(cpu *Z80Cpu) { handler_bit(cpu, 0, cpu.Mem.Read(pack_regcouple(cpu.h, cpu.l))) }, // 46
-	func(cpu *Z80Cpu) { handler_bit(cpu, 0, cpu.a) },                                      // 47
-	func(cpu *Z80Cpu) { handler_bit(cpu, 1, cpu.b) },                                      // 48
-	func(cpu *Z80Cpu) { handler_bit(cpu, 1, cpu.c) },                                      // 49
-	func(cpu *Z80Cpu) { handler_bit(cpu, 1, cpu.d) },                                      // 4A
-	func(cpu *Z80Cpu) { handler_bit(cpu, 1, cpu.e) },                                      // 4B
-	func(cpu *Z80Cpu) { handler_bit(cpu, 1, cpu.h) },                                      // 4C
-	func(cpu *Z80Cpu) { handler_bit(cpu, 1, cpu.l) },                                      // 4D
-	func(cpu *Z80Cpu) { handler_bit(cpu, 1, cpu.Mem.Read(pack_regcouple(cpu.h, cpu.l))) }, // 4E
-	func(cpu *Z80Cpu) { handler_bit(cpu, 1, cpu.a) },                                      // 4F
-	func(cpu *Z80Cpu) { handler_bit(cpu, 2, cpu.b) },                                      // 50
-	func(cpu *Z80Cpu) { handler_bit(cpu, 2, cpu.c) },                                      // 51
-	func(cpu *Z80Cpu) { handler_bit(cpu, 2, cpu.d) },                                      // 52
-	func(cpu *Z80Cpu) { handler_bit(cpu, 2, cpu.e) },                                      // 53
-	func(cpu *Z80Cpu) { handler_bit(cpu, 2, cpu.h) },                                      // 54
-	func(cpu *Z80Cpu) { handler_bit(cpu, 2, cpu.l) },                                      // 55
-	func(cpu *Z80Cpu) { handler_bit(cpu, 2, cpu.Mem.Read(pack_regcouple(cpu.h, cpu.l))) }, // 56
-	func(cpu *Z80Cpu) { handler_bit(cpu, 2, cpu.a) },                                      // 57
-	func(cpu *Z80Cpu) { handler_bit(cpu, 3, cpu.b) },                                      // 58
-	func(cpu *Z80Cpu) { handler_bit(cpu, 3, cpu.c) },                                      // 59
-	func(cpu *Z80Cpu) { handler_bit(cpu, 3, cpu.d) },                                      // 5A
-	func(cpu *Z80Cpu) { handler_bit(cpu, 3, cpu.e) },                                      // 5B
-	func(cpu *Z80Cpu) { handler_bit(cpu, 3, cpu.h) },                                      // 5C
-	func(cpu *Z80Cpu) { handler_bit(cpu, 3, cpu.l) },                                      // 5D
-	func(cpu *Z80Cpu) { handler_bit(cpu, 3, cpu.Mem.Read(pack_regcouple(cpu.h, cpu.l))) }, // 5E
-	func(cpu *Z80Cpu) { handler_bit(cpu, 3, cpu.a) },                                      // 5F
-	func(cpu *Z80Cpu) { handler_bit(cpu, 4, cpu.b) },                                      // 60
-	func(cpu *Z80Cpu) { handler_bit(cpu, 4, cpu.c) },                                      // 61
-	func(cpu *Z80Cpu) { handler_bit(cpu, 4, cpu.d) },                                      // 62
-	func(cpu *Z80Cpu) { handler_bit(cpu, 4, cpu.e) },                                      // 63
-	func(cpu *Z80Cpu) { handler_bit(cpu, 4, cpu.h) },                                      // 64
-	func(cpu *Z80Cpu) { handler_bit(cpu, 4, cpu.l) },                                      // 65
-	func(cpu *Z80Cpu) { handler_bit(cpu, 4, cpu.Mem.Read(pack_regcouple(cpu.h, cpu.l))) }, // 66
-	func(cpu *Z80Cpu) { handler_bit(cpu, 4, cpu.a) },                                      // 67
-	func(cpu *Z80Cpu) { handler_bit(cpu, 5, cpu.b) },                                      // 68
-	func(cpu *Z80Cpu) { handler_bit(cpu, 5, cpu.c) },                                      // 69
-	func(cpu *Z80Cpu) { handler_bit(cpu, 5, cpu.d) },                                      // 6A
-	func(cpu *Z80Cpu) { handler_bit(cpu, 5, cpu.e) },                                      // 6B
-	func(cpu *Z80Cpu) { handler_bit(cpu, 5, cpu.h) },                                      // 6C
-	func(cpu *Z80Cpu) { handler_bit(cpu, 5, cpu.l) },                                      // 6D
-	func(cpu *Z80Cpu) { handler_bit(cpu, 5, cpu.Mem.Read(pack_regcouple(cpu.h, cpu.l))) }, // 6E
-	func(cpu *Z80Cpu) { handler_bit(cpu, 5, cpu.a) },                                      // 6F
-	func(cpu *Z80Cpu) { handler_bit(cpu, 6, cpu.b) },                                      // 70
-	func(cpu *Z80Cpu) { handler_bit(cpu, 6, cpu.c) },                                      // 71
-	func(cpu *Z80Cpu) { handler_bit(cpu, 6, cpu.d) },                                      // 72
-	func(cpu *Z80Cpu) { handler_bit(cpu, 6, cpu.e) },                                      // 73
-	func(cpu *Z80Cpu) { handler_bit(cpu, 6, cpu.h) },                                      // 74
-	func(cpu *Z80Cpu) { handler_bit(cpu, 6, cpu.l) },                                      // 75
-	func(cpu *Z80Cpu) { handler_bit(cpu, 6, cpu.Mem.Read(pack_regcouple(cpu.h, cpu.l))) }, // 76
-	func(cpu *Z80Cpu) { handler_bit(cpu, 6, cpu.a) },                                      // 77
-	func(cpu *Z80Cpu) { handler_bit(cpu, 7, cpu.b) },                                      // 78
-	func(cpu *Z80Cpu) { handler_bit(cpu, 7, cpu.c) },                                      // 79
-	func(cpu *Z80Cpu) { handler_bit(cpu, 7, cpu.d) },                                      // 7A
-	func(cpu *Z80Cpu) { handler_bit(cpu, 7, cpu.e) },                                      // 7B
-	func(cpu *Z80Cpu) { handler_bit(cpu, 7, cpu.h) },                                      // 7C
-	func(cpu *Z80Cpu) { handler_bit(cpu, 7, cpu.l) },                                      // 7D
-	func(cpu *Z80Cpu) { handler_bit(cpu, 7, cpu.Mem.Read(pack_regcouple(cpu.h, cpu.l))) }, // 7E
-	func(cpu *Z80Cpu) { handler_bit(cpu, 7, cpu.a) },                                      // 7F
+	func(cpu *Z80Cpu) { handler_bit(cpu, 0, cpu.B) },                                      // 40
+	func(cpu *Z80Cpu) { handler_bit(cpu, 0, cpu.C) },                                      // 41
+	func(cpu *Z80Cpu) { handler_bit(cpu, 0, cpu.D) },                                      // 42
+	func(cpu *Z80Cpu) { handler_bit(cpu, 0, cpu.E) },                                      // 43
+	func(cpu *Z80Cpu) { handler_bit(cpu, 0, cpu.H) },                                      // 44
+	func(cpu *Z80Cpu) { handler_bit(cpu, 0, cpu.L) },                                      // 45
+	func(cpu *Z80Cpu) { handler_bit(cpu, 0, cpu.Mem.Read(pack_regcouple(cpu.H, cpu.L))) }, // 46
+	func(cpu *Z80Cpu) { handler_bit(cpu, 0, cpu.A) },                                      // 47
+	func(cpu *Z80Cpu) { handler_bit(cpu, 1, cpu.B) },                                      // 48
+	func(cpu *Z80Cpu) { handler_bit(cpu, 1, cpu.C) },                                      // 49
+	func(cpu *Z80Cpu) { handler_bit(cpu, 1, cpu.D) },                                      // 4A
+	func(cpu *Z80Cpu) { handler_bit(cpu, 1, cpu.E) },                                      // 4B
+	func(cpu *Z80Cpu) { handler_bit(cpu, 1, cpu.H) },                                      // 4C
+	func(cpu *Z80Cpu) { handler_bit(cpu, 1, cpu.L) },                                      // 4D
+	func(cpu *Z80Cpu) { handler_bit(cpu, 1, cpu.Mem.Read(pack_regcouple(cpu.H, cpu.L))) }, // 4E
+	func(cpu *Z80Cpu) { handler_bit(cpu, 1, cpu.A) },                                      // 4F
+	func(cpu *Z80Cpu) { handler_bit(cpu, 2, cpu.B) },                                      // 50
+	func(cpu *Z80Cpu) { handler_bit(cpu, 2, cpu.C) },                                      // 51
+	func(cpu *Z80Cpu) { handler_bit(cpu, 2, cpu.D) },                                      // 52
+	func(cpu *Z80Cpu) { handler_bit(cpu, 2, cpu.E) },                                      // 53
+	func(cpu *Z80Cpu) { handler_bit(cpu, 2, cpu.H) },                                      // 54
+	func(cpu *Z80Cpu) { handler_bit(cpu, 2, cpu.L) },                                      // 55
+	func(cpu *Z80Cpu) { handler_bit(cpu, 2, cpu.Mem.Read(pack_regcouple(cpu.H, cpu.L))) }, // 56
+	func(cpu *Z80Cpu) { handler_bit(cpu, 2, cpu.A) },                                      // 57
+	func(cpu *Z80Cpu) { handler_bit(cpu, 3, cpu.B) },                                      // 58
+	func(cpu *Z80Cpu) { handler_bit(cpu, 3, cpu.C) },                                      // 59
+	func(cpu *Z80Cpu) { handler_bit(cpu, 3, cpu.D) },                                      // 5A
+	func(cpu *Z80Cpu) { handler_bit(cpu, 3, cpu.E) },                                      // 5B
+	func(cpu *Z80Cpu) { handler_bit(cpu, 3, cpu.H) },                                      // 5C
+	func(cpu *Z80Cpu) { handler_bit(cpu, 3, cpu.L) },                                      // 5D
+	func(cpu *Z80Cpu) { handler_bit(cpu, 3, cpu.Mem.Read(pack_regcouple(cpu.H, cpu.L))) }, // 5E
+	func(cpu *Z80Cpu) { handler_bit(cpu, 3, cpu.A) },                                      // 5F
+	func(cpu *Z80Cpu) { handler_bit(cpu, 4, cpu.B) },                                      // 60
+	func(cpu *Z80Cpu) { handler_bit(cpu, 4, cpu.C) },                                      // 61
+	func(cpu *Z80Cpu) { handler_bit(cpu, 4, cpu.D) },                                      // 62
+	func(cpu *Z80Cpu) { handler_bit(cpu, 4, cpu.E) },                                      // 63
+	func(cpu *Z80Cpu) { handler_bit(cpu, 4, cpu.H) },                                      // 64
+	func(cpu *Z80Cpu) { handler_bit(cpu, 4, cpu.L) },                                      // 65
+	func(cpu *Z80Cpu) { handler_bit(cpu, 4, cpu.Mem.Read(pack_regcouple(cpu.H, cpu.L))) }, // 66
+	func(cpu *Z80Cpu) { handler_bit(cpu, 4, cpu.A) },                                      // 67
+	func(cpu *Z80Cpu) { handler_bit(cpu, 5, cpu.B) },                                      // 68
+	func(cpu *Z80Cpu) { handler_bit(cpu, 5, cpu.C) },                                      // 69
+	func(cpu *Z80Cpu) { handler_bit(cpu, 5, cpu.D) },                                      // 6A
+	func(cpu *Z80Cpu) { handler_bit(cpu, 5, cpu.E) },                                      // 6B
+	func(cpu *Z80Cpu) { handler_bit(cpu, 5, cpu.H) },                                      // 6C
+	func(cpu *Z80Cpu) { handler_bit(cpu, 5, cpu.L) },                                      // 6D
+	func(cpu *Z80Cpu) { handler_bit(cpu, 5, cpu.Mem.Read(pack_regcouple(cpu.H, cpu.L))) }, // 6E
+	func(cpu *Z80Cpu) { handler_bit(cpu, 5, cpu.A) },                                      // 6F
+	func(cpu *Z80Cpu) { handler_bit(cpu, 6, cpu.B) },                                      // 70
+	func(cpu *Z80Cpu) { handler_bit(cpu, 6, cpu.C) },                                      // 71
+	func(cpu *Z80Cpu) { handler_bit(cpu, 6, cpu.D) },                                      // 72
+	func(cpu *Z80Cpu) { handler_bit(cpu, 6, cpu.E) },                                      // 73
+	func(cpu *Z80Cpu) { handler_bit(cpu, 6, cpu.H) },                                      // 74
+	func(cpu *Z80Cpu) { handler_bit(cpu, 6, cpu.L) },                                      // 75
+	func(cpu *Z80Cpu) { handler_bit(cpu, 6, cpu.Mem.Read(pack_regcouple(cpu.H, cpu.L))) }, // 76
+	func(cpu *Z80Cpu) { handler_bit(cpu, 6, cpu.A) },                                      // 77
+	func(cpu *Z80Cpu) { handler_bit(cpu, 7, cpu.B) },                                      // 78
+	func(cpu *Z80Cpu) { handler_bit(cpu, 7, cpu.C) },                                      // 79
+	func(cpu *Z80Cpu) { handler_bit(cpu, 7, cpu.D) },                                      // 7A
+	func(cpu *Z80Cpu) { handler_bit(cpu, 7, cpu.E) },                                      // 7B
+	func(cpu *Z80Cpu) { handler_bit(cpu, 7, cpu.H) },                                      // 7C
+	func(cpu *Z80Cpu) { handler_bit(cpu, 7, cpu.L) },                                      // 7D
+	func(cpu *Z80Cpu) { handler_bit(cpu, 7, cpu.Mem.Read(pack_regcouple(cpu.H, cpu.L))) }, // 7E
+	func(cpu *Z80Cpu) { handler_bit(cpu, 7, cpu.A) },                                      // 7F
 	func(cpu *Z80Cpu) { panic("CB Opcode 80 unimplemented") },                             // 80
 	func(cpu *Z80Cpu) { panic("CB Opcode 81 unimplemented") },                             // 81
 	func(cpu *Z80Cpu) { panic("CB Opcode 82 unimplemented") },                             // 82

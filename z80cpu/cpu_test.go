@@ -36,8 +36,8 @@ func TestLoadA(t *testing.T) {
 	cpu.ExecOne()
 	cpu.ExecOne()
 
-	if cpu.a != 30 || cpu.b != 20 {
-		t.Errorf("cpu.a=%d (exp: 30); cpu.b=%d (exp: 20)", cpu.a, cpu.b)
+	if cpu.A != 30 || cpu.B != 20 {
+		t.Errorf("cpu.A=%d (exp: 30); cpu.B=%d (exp: 20)", cpu.A, cpu.B)
 	}
 }
 
@@ -56,8 +56,8 @@ func TestXor(t *testing.T) {
 	cpu.ExecOne()
 	cpu.ExecOne()
 
-	if cpu.a != 0x30 {
-		t.Errorf("cpu.a=%02x (exp: 0x30)", cpu.a)
+	if cpu.A != 0x30 {
+		t.Errorf("cpu.A=%02x (exp: 0x30)", cpu.A)
 	}
 }
 
@@ -72,23 +72,23 @@ func TestJRNZ(t *testing.T) {
 	memory.WriteBuffer(0, prog)
 
 	cpu := Z80Cpu{Mem: memory}
-	cpu.a = 0
+	cpu.A = 0
 	cpu.ExecOne()
 	cpu.ExecOne()
 	cpu.ExecOne()
 
-	if cpu.b != 0 {
-		t.Errorf("cpu.b=%d (exp: 0)", cpu.b)
+	if cpu.B != 0 {
+		t.Errorf("cpu.B=%d (exp: 0)", cpu.B)
 	}
 
 	cpu.Reset()
-	cpu.a = 1
+	cpu.A = 1
 	cpu.ExecOne()
 	cpu.ExecOne()
 	cpu.ExecOne()
 
-	if cpu.b != 1 {
-		t.Errorf("cpu.b=%d (exp: 1)", cpu.b)
+	if cpu.B != 1 {
+		t.Errorf("cpu.B=%d (exp: 1)", cpu.B)
 	}
 }
 
@@ -106,8 +106,8 @@ func TestRl(t *testing.T) {
 	cpu.ExecOne()
 	cpu.ExecOne()
 
-	if cpu.b != 40 {
-		t.Errorf("cpu.b=%d (exp: 40)", cpu.b)
+	if cpu.B != 40 {
+		t.Errorf("cpu.B=%d (exp: 40)", cpu.B)
 	}
 }
 
@@ -119,16 +119,16 @@ func TestCp(t *testing.T) {
 	memory.WriteBuffer(0, prog)
 
 	cpu := Z80Cpu{Mem: memory}
-	cpu.a = 10
-	cpu.b = 20
+	cpu.A = 10
+	cpu.B = 20
 	cpu.ExecOne()
 	if cpu.flagWasZero {
 		t.Errorf("flag zero should not be set")
 	}
 
 	cpu.Reset()
-	cpu.a = 10
-	cpu.b = 10
+	cpu.A = 10
+	cpu.B = 10
 	cpu.ExecOne()
 	if !cpu.flagWasZero {
 		t.Errorf("flag zero should be set")
@@ -169,14 +169,14 @@ func TestPushPop(t *testing.T) {
 
 	cpu := Z80Cpu{Mem: memory}
 	cpu.Reset()
-	cpu.h = 33
-	cpu.l = 22
+	cpu.H = 33
+	cpu.L = 22
 
 	cpu.ExecOne()
 	cpu.ExecOne()
 
-	if cpu.h != 33 || cpu.l != 22 {
-		t.Errorf("cpu.h=%d (exp: 33); cpu.l=%d (exp: 2)", cpu.h, cpu.l)
+	if cpu.H != 33 || cpu.L != 22 {
+		t.Errorf("cpu.H=%d (exp: 33); cpu.L=%d (exp: 2)", cpu.H, cpu.L)
 	}
 }
 
@@ -191,7 +191,7 @@ func TestPushPopFlags(t *testing.T) {
 
 	cpu := Z80Cpu{Mem: memory}
 	cpu.Reset()
-	cpu.a = 33
+	cpu.A = 33
 	cpu.flagCarry = true
 	cpu.flagHalfCarry = false
 	cpu.flagWasSub = true
@@ -199,14 +199,14 @@ func TestPushPopFlags(t *testing.T) {
 
 	cpu.ExecOne()
 	cpu.ExecOne()
-	if cpu.a != 33 || !cpu.flagCarry || cpu.flagHalfCarry || !cpu.flagWasSub || cpu.flagWasZero {
+	if cpu.A != 33 || !cpu.flagCarry || cpu.flagHalfCarry || !cpu.flagWasSub || cpu.flagWasZero {
 		t.Errorf(
-			"cpu.a=%d (exp: 33); "+
+			"cpu.A=%d (exp: 33); "+
 				"cpu.flagCarry=%v (exp: true); "+
 				"cpu.flagHalfCarry=%v (exp: false); "+
 				"cpu.flagWasSub=%v (exp: true); "+
 				"cpu.flagWasZero=%v (exp: false)",
-			cpu.a, cpu.flagCarry, cpu.flagHalfCarry, cpu.flagWasSub, cpu.flagWasZero)
+			cpu.A, cpu.flagCarry, cpu.flagHalfCarry, cpu.flagWasSub, cpu.flagWasZero)
 	}
 }
 
@@ -225,16 +225,16 @@ func TestRegcoupleInc(t *testing.T) {
 	cpu.ExecOne()
 	cpu.ExecOne()
 
-	if cpu.b != 0 || cpu.c != 3 {
-		t.Errorf("cpu.b=%d (exp: 0); cpu.c=%d (exp: 3)", cpu.b, cpu.c)
+	if cpu.B != 0 || cpu.C != 3 {
+		t.Errorf("cpu.B=%d (exp: 0); cpu.C=%d (exp: 3)", cpu.B, cpu.C)
 	}
 
-	cpu.b = 1
-	cpu.c = 255
+	cpu.B = 1
+	cpu.C = 255
 	cpu.ExecOne()
 
-	if cpu.b != 2 || cpu.c != 0 {
-		t.Errorf("cpu.b=%d (exp: 2); cpu.c=%d (exp: 0)", cpu.b, cpu.c)
+	if cpu.B != 2 || cpu.C != 0 {
+		t.Errorf("cpu.B=%d (exp: 2); cpu.C=%d (exp: 0)", cpu.B, cpu.C)
 	}
 }
 
@@ -276,8 +276,8 @@ func TestProgHLToHex(t *testing.T) {
 	runProg := func(inp uint16) string {
 		cpu.Reset()
 
-		cpu.h = uint8(inp >> 8)
-		cpu.l = uint8(inp & 0xff)
+		cpu.H = uint8(inp >> 8)
+		cpu.L = uint8(inp & 0xff)
 
 		for !cpu.isHalted {
 			cpu.ExecOne()

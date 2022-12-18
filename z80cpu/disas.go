@@ -107,10 +107,10 @@ func (disas *Z80Disas) DisassembleOneFromData(addr uint16, data []byte) (int, st
 }
 
 func (disas *Z80Disas) DisassembleOneFromCPU(cpu *Z80Cpu) (int, string) {
-	disas.off = cpu.pc
+	disas.off = cpu.PC
 	disas.cpu = cpu
 	disas.data = nil
-	disas.addr = cpu.pc
+	disas.addr = cpu.PC
 
 	err, off, str := disas.disassembleOne()
 	if err != nil {
