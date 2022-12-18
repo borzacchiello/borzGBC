@@ -17,6 +17,10 @@ func main() {
 	if err != nil {
 		fmt.Printf("unable to create SDLPlugin: %s\n", err)
 	}
+	defer pl.Destroy()
 
-	pl.Run(os.Args[1])
+	err = pl.Run(os.Args[1])
+	if err != nil {
+		fmt.Printf("unable to run the emulator: %s\n", err)
+	}
 }

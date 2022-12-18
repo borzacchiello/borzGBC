@@ -2,7 +2,6 @@ package sdlplugin
 
 import (
 	"borzGBC/gbc"
-	"fmt"
 
 	"github.com/veandco/go-sdl2/sdl"
 )
@@ -72,11 +71,10 @@ func (pl *SDLPlugin) CommitScreen() {
 	pl.Renderer.Present()
 }
 
-func (pl *SDLPlugin) Run(romFilename string) {
+func (pl *SDLPlugin) Run(romFilename string) error {
 	console, err := gbc.MakeConsole(romFilename, pl)
 	if err != nil {
-		fmt.Printf("Unable to load cartridge: %s\n", err)
-		return
+		return err
 	}
 	console.CPU.EnableDisas = false
 
@@ -85,7 +83,6 @@ func (pl *SDLPlugin) Run(romFilename string) {
 		for event := sdl.PollEvent(); event != nil; event = sdl.PollEvent() {
 			switch event.(type) {
 			case *sdl.QuitEvent:
-				println("Quit")
 				running = false
 				break
 			}
@@ -94,4 +91,6 @@ func (pl *SDLPlugin) Run(romFilename string) {
 		cycles := console.Step()
 		sdl.Delay(uint32(console.GetMs(cycles)))
 	}
+
+	return nil
 }
