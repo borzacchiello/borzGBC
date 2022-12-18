@@ -30,7 +30,7 @@ func MakeSDLPlugin(scale int) (*SDLPlugin, error) {
 		"BorzGBC",
 		sdl.WINDOWPOS_UNDEFINED,
 		sdl.WINDOWPOS_UNDEFINED,
-		int32(pl.Width), int32(pl.Height),
+		int32(pl.Width*pl.Scale), int32(pl.Height*pl.Scale),
 		sdl.WINDOW_SHOWN)
 	if err != nil {
 		return nil, err
@@ -41,7 +41,6 @@ func MakeSDLPlugin(scale int) (*SDLPlugin, error) {
 	if err != nil {
 		return nil, err
 	}
-	fmt.Printf("renderer: %p\n", pl.Renderer)
 
 	pl.Renderer.SetDrawColor(0, 0, 0, 255)
 	pl.Renderer.Clear()
@@ -62,8 +61,11 @@ func (pl *SDLPlugin) SetPixel(x, y int, c uint32) {
 	a = uint8(c & 0xFF)
 
 	pl.Renderer.SetDrawColor(r, g, b, a)
-	pl.Renderer.DrawPoint(int32(x), int32(y))
-
+	for offx := 0; offx < pl.Scale; offx++ {
+		for offy := 0; offy < pl.Scale; offy++ {
+			pl.Renderer.DrawPoint(int32(x*pl.Scale+offx), int32(y*pl.Scale+offy))
+		}
+	}
 }
 
 func (pl *SDLPlugin) CommitScreen() {

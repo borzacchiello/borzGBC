@@ -13,7 +13,7 @@ func main() {
 		return
 	}
 
-	pl, err := sdlplugin.MakeSDLPlugin(1)
+	pl, err := sdlplugin.MakeSDLPlugin(3)
 	if err != nil {
 		fmt.Printf("unable to create SDLPlugin: %s\n", err)
 	}
