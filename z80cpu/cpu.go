@@ -371,7 +371,7 @@ func handler_sub_R_8(cpu *Z80Cpu, dst *uint8, val uint8) {
 	cpu.flagCarry = *dst < val
 	cpu.flagHalfCarry = ((*dst&0xf)-(val&0xf))>>7 != 0
 
-	*dst = val
+	*dst = res
 }
 
 // AND
