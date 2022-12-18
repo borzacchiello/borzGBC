@@ -394,6 +394,16 @@ func handler_xor_R_8(cpu *Z80Cpu, dst *uint8, value uint8) {
 	cpu.flagWasSub = false
 }
 
+// OR
+func handler_or_R_8(cpu *Z80Cpu, dst *uint8, value uint8) {
+	*dst = *dst | value
+
+	cpu.flagWasZero = *dst == 0
+	cpu.flagHalfCarry = false
+	cpu.flagCarry = false
+	cpu.flagWasSub = false
+}
+
 // CP
 func handler_cp(cpu *Z80Cpu, v1, v2 uint8) {
 	res := v1 - v2
@@ -753,14 +763,14 @@ var handlers = [256]func(*Z80Cpu){
 	func(cpu *Z80Cpu) { handler_xor_R_8(cpu, &cpu.a, cpu.l) },                                       // AD
 	func(cpu *Z80Cpu) { handler_xor_R_8(cpu, &cpu.a, cpu.Mem.Read(pack_regcouple(cpu.h, cpu.l))) },  // AE
 	func(cpu *Z80Cpu) { handler_xor_R_8(cpu, &cpu.a, cpu.a) },                                       // AF
-	func(cpu *Z80Cpu) { panic("Opcode B0 unimplemented") },                                          // B0
-	func(cpu *Z80Cpu) { panic("Opcode B1 unimplemented") },                                          // B1
-	func(cpu *Z80Cpu) { panic("Opcode B2 unimplemented") },                                          // B2
-	func(cpu *Z80Cpu) { panic("Opcode B3 unimplemented") },                                          // B3
-	func(cpu *Z80Cpu) { panic("Opcode B4 unimplemented") },                                          // B4
-	func(cpu *Z80Cpu) { panic("Opcode B5 unimplemented") },                                          // B5
-	func(cpu *Z80Cpu) { panic("Opcode B6 unimplemented") },                                          // B6
-	func(cpu *Z80Cpu) { panic("Opcode B7 unimplemented") },                                          // B7
+	func(cpu *Z80Cpu) { handler_or_R_8(cpu, &cpu.a, cpu.b) },                                        // B0
+	func(cpu *Z80Cpu) { handler_or_R_8(cpu, &cpu.a, cpu.c) },                                        // B1
+	func(cpu *Z80Cpu) { handler_or_R_8(cpu, &cpu.a, cpu.d) },                                        // B2
+	func(cpu *Z80Cpu) { handler_or_R_8(cpu, &cpu.a, cpu.e) },                                        // B3
+	func(cpu *Z80Cpu) { handler_or_R_8(cpu, &cpu.a, cpu.h) },                                        // B4
+	func(cpu *Z80Cpu) { handler_or_R_8(cpu, &cpu.a, cpu.l) },                                        // B5
+	func(cpu *Z80Cpu) { handler_or_R_8(cpu, &cpu.a, cpu.Mem.Read(pack_regcouple(cpu.h, cpu.l))) },   // B6
+	func(cpu *Z80Cpu) { handler_or_R_8(cpu, &cpu.a, cpu.a) },                                        // B7
 	func(cpu *Z80Cpu) { handler_cp(cpu, cpu.a, cpu.b) },                                             // B8
 	func(cpu *Z80Cpu) { handler_cp(cpu, cpu.a, cpu.c) },                                             // B9
 	func(cpu *Z80Cpu) { handler_cp(cpu, cpu.a, cpu.d) },                                             // BA
