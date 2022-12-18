@@ -57,9 +57,9 @@ func (cons *Console) readIO(addr uint16) uint8 {
 		return cons.PPU.OBP1
 	case addr == 0xFF50:
 		if cons.InBootROM {
-			return 1
+			return 0
 		}
-		return 0
+		return 1
 	case addr == 0xFF4A:
 		return cons.PPU.WY
 	case addr == 0xFF4B:
@@ -114,7 +114,7 @@ func (cons *Console) writeIO(addr uint16, value uint8) {
 		cons.PPU.OBP1 = value
 		return
 	case addr == 0xFF50:
-		if value == 0 {
+		if value == 1 {
 			cons.InBootROM = false
 		} else {
 			cons.InBootROM = true
