@@ -4,6 +4,7 @@ import (
 	"borzGBC/z80cpu"
 	"fmt"
 	"io/ioutil"
+	"os"
 )
 
 var InterruptVBlank z80cpu.Z80Interrupt = z80cpu.Z80Interrupt{
@@ -34,6 +35,9 @@ type Console struct {
 
 	InBootROM bool
 	BootROM   []byte
+
+	// Debug Flags
+	PrintDebug bool
 }
 
 func (cons *Console) readIO(addr uint16) uint8 {
@@ -239,6 +243,14 @@ func (cons *Console) Step() int {
 
 	totCycles := 0
 	for cons.PPU.FrameCount == prevFrame {
+
+		if cons.PrintDebug {
+			var cpu *z80cpu.Z80Cpu = cons.CPU
+			_, disas_str := cons.CPU.Disas.DisassembleOneFromCPU(cons.CPU)
+			fmt.Fprintf(os.Stderr, "%s |PC=%04x SP=%04x A=%02x B=%02x C=%02x D=%02x E=%02x H=%02x L=%02x F=%02x LY=%02x\n",
+				disas_str, cpu.PC, cpu.SP, cpu.A, cpu.B, cpu.C, cpu.D, cpu.E, cpu.H, cpu.L, cpu.PackFlags(), cons.PPU.LY)
+		}
+
 		cpuCycles := cons.CPU.ExecOne()
 		cons.PPU.Tick(cpuCycles)
 		cons.timer.Tick(cpuCycles)
