@@ -1,4 +1,4 @@
-package imageplugin
+package mediaplugin
 
 import (
 	"fmt"

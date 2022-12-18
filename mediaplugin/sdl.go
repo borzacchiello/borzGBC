@@ -1,4 +1,4 @@
-package sdlplugin
+package mediaplugin
 
 import (
 	"borzGBC/gbc"

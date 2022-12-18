@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"borzGBC/sdlplugin"
+	"borzGBC/mediaplugin"
 )
 
 func main() {
@@ -13,7 +13,7 @@ func main() {
 		return
 	}
 
-	pl, err := sdlplugin.MakeSDLPlugin(3)
+	pl, err := mediaplugin.MakeSDLPlugin(3)
 	if err != nil {
 		fmt.Printf("unable to create SDLPlugin: %s\n", err)
 	}
