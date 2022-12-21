@@ -2,6 +2,8 @@ package mediaplugin
 
 import (
 	"borzGBC/gbc"
+	"fmt"
+	"time"
 
 	"github.com/veandco/go-sdl2/sdl"
 )
@@ -9,6 +11,7 @@ import (
 type SDLPlugin struct {
 	Window        *sdl.Window
 	Renderer      *sdl.Renderer
+	Surface       *sdl.Surface
 	Width, Height int
 	Scale         int
 }
@@ -25,18 +28,14 @@ func MakeSDLPlugin(scale int) (*SDLPlugin, error) {
 		Scale:  scale,
 	}
 
-	pl.Window, err = sdl.CreateWindow(
-		"BorzGBC",
-		sdl.WINDOWPOS_UNDEFINED,
-		sdl.WINDOWPOS_UNDEFINED,
-		int32(pl.Width*pl.Scale), int32(pl.Height*pl.Scale),
-		sdl.WINDOW_SHOWN)
+	pl.Window, pl.Renderer, err = sdl.CreateWindowAndRenderer(
+		int32(pl.Width*pl.Scale), int32(pl.Height*pl.Scale), 0)
 	if err != nil {
 		return nil, err
 	}
 
-	pl.Renderer, err = sdl.CreateRenderer(
-		pl.Window, -1, sdl.RENDERER_ACCELERATED)
+	pl.Surface, err = sdl.CreateRGBSurface(
+		0, int32(pl.Width), int32(pl.Height), 32, 0xFF000000, 0x00FF0000, 0x0000FF00, 0x000000FF)
 	if err != nil {
 		return nil, err
 	}
@@ -59,15 +58,28 @@ func (pl *SDLPlugin) SetPixel(x, y int, c uint32) {
 	b = uint8((c >> 8) & 0xFF)
 	a = uint8(c & 0xFF)
 
-	pl.Renderer.SetDrawColor(r, g, b, a)
-	for offx := 0; offx < pl.Scale; offx++ {
-		for offy := 0; offy < pl.Scale; offy++ {
-			pl.Renderer.DrawPoint(int32(x*pl.Scale+offx), int32(y*pl.Scale+offy))
-		}
-	}
+	pixels := pl.Surface.Pixels()
+	pixels[y*int(pl.Surface.Pitch)+x*int(pl.Surface.BytesPerPixel())+0] = a
+	pixels[y*int(pl.Surface.Pitch)+x*int(pl.Surface.BytesPerPixel())+1] = b
+	pixels[y*int(pl.Surface.Pitch)+x*int(pl.Surface.BytesPerPixel())+2] = g
+	pixels[y*int(pl.Surface.Pitch)+x*int(pl.Surface.BytesPerPixel())+3] = r
 }
 
 func (pl *SDLPlugin) CommitScreen() {
+	texture, err := pl.Renderer.CreateTextureFromSurface(pl.Surface)
+	if err != nil {
+		fmt.Println("Unable to create texture while rendering")
+		return
+	}
+	defer texture.Destroy()
+
+	rect := sdl.Rect{
+		X: 0,
+		Y: 0,
+		W: int32(pl.Width * pl.Scale),
+		H: int32(pl.Height * pl.Scale)}
+	pl.Renderer.Copy(texture, nil, &rect)
+
 	pl.Renderer.Present()
 
 	pl.Renderer.SetDrawColor(0xff, 0xff, 0xff, 0xff)
@@ -84,6 +96,8 @@ func (pl *SDLPlugin) Run(romFilename string) error {
 
 	running := true
 	for running {
+		start := time.Now()
+
 		for event := sdl.PollEvent(); event != nil; event = sdl.PollEvent() {
 			switch event.(type) {
 			case *sdl.QuitEvent:
@@ -92,9 +106,13 @@ func (pl *SDLPlugin) Run(romFilename string) error {
 			}
 		}
 
-		console.Step()
-		// cycles := console.Step()
-		// sdl.Delay(uint32(console.GetMs(cycles)))
+		cycles := console.Step()
+		elapsed := time.Since(start)
+		if int(elapsed.Milliseconds()) < console.GetMs(cycles) {
+			sdl.Delay(uint32(console.GetMs(cycles) - int(elapsed.Milliseconds())))
+		} else {
+			fmt.Println("Emulation is too slow")
+		}
 	}
 
 	return nil
