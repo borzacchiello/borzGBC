@@ -30,12 +30,77 @@ type Cart struct {
 	header   Header
 	ROMBanks [][16384]uint8
 	RAMBanks [][8192]uint8
+
+	Map Mapper
 }
 
 type CartError string
 
 func (err CartError) Error() string {
 	return string(err)
+}
+
+func getMapper(cart *Cart) (Mapper, error) {
+	switch cart.header.CartridgeType {
+	case 0x00: // ROM ONLY
+		return ROMOnlyMapper{cart: cart}, nil
+	case 0x01: // MBC1
+		return nil, CartError("Unsupported Mapper MBC1")
+	case 0x02: // MBC1+RAM
+		return nil, CartError("Unsupported Mapper MBC1+RAM")
+	case 0x03: // MBC1+RAM+BATTERY
+		return nil, CartError("Unsupported Mapper MBC1+RAM+BATTERY")
+	case 0x05: // MBC2
+		return nil, CartError("Unsupported Mapper MBC2")
+	case 0x06: // MBC2+BATTERY
+		return nil, CartError("Unsupported Mapper MBC2+BATTERY")
+	case 0x08: // ROM+RAM 1
+		return nil, CartError("Unsupported Mapper ROM+RAM 1")
+	case 0x09: // ROM+RAM+BATTERY 1
+		return nil, CartError("Unsupported Mapper ROM+RAM+BATTERY 1")
+	case 0x0B: // MMM01
+		return nil, CartError("Unsupported Mapper MMM01")
+	case 0x0C: // MMM01+RAM
+		return nil, CartError("Unsupported Mapper MMM01+RAM")
+	case 0x0D: // MMM01+RAM+BATTERY
+		return nil, CartError("Unsupported Mapper MMM01+RAM+BATTERY")
+	case 0x0F: // MBC3+TIMER+BATTERY
+		return nil, CartError("Unsupported Mapper MBC3+TIMER+BATTERY")
+	case 0x10: // MBC3+TIMER+RAM+BATTERY 2
+		return nil, CartError("Unsupported Mapper MBC3+TIMER+RAM+BATTERY 2")
+	case 0x11: // MBC3
+		return nil, CartError("Unsupported Mapper MBC3")
+	case 0x12: // MBC3+RAM 2
+		return nil, CartError("Unsupported Mapper MBC3+RAM 2")
+	case 0x13: // MBC3+RAM+BATTERY 2
+		return nil, CartError("Unsupported Mapper MBC3+RAM+BATTERY 2")
+	case 0x19: // MBC5
+		return nil, CartError("Unsupported Mapper MBC5")
+	case 0x1A: // MBC5+RAM
+		return nil, CartError("Unsupported Mapper MBC5+RAM")
+	case 0x1B: // MBC5+RAM+BATTERY
+		return nil, CartError("Unsupported Mapper MBC5+RAM+BATTERY")
+	case 0x1C: // MBC5+RUMBLE
+		return nil, CartError("Unsupported Mapper MBC5+RUMBLE")
+	case 0x1D: // MBC5+RUMBLE+RAM
+		return nil, CartError("Unsupported Mapper MBC5+RUMBLE+RAM")
+	case 0x1E: // MBC5+RUMBLE+RAM+BATTERY
+		return nil, CartError("Unsupported Mapper MBC5+RUMBLE+RAM+BATTERY")
+	case 0x20: // MBC6
+		return nil, CartError("Unsupported Mapper MBC6")
+	case 0x22: // MBC7+SENSOR+RUMBLE+RAM+BATTERY
+		return nil, CartError("Unsupported Mapper MBC7+SENSOR+RUMBLE+RAM+BATTERY")
+	case 0xFC: // POCKET CAMERA
+		return nil, CartError("Unsupported Mapper POCKET CAMERA")
+	case 0xFD: // BANDAI TAMA5
+		return nil, CartError("Unsupported Mapper BANDAI TAMA5")
+	case 0xFE: // HuC3
+		return nil, CartError("Unsupported Mapper HuC3")
+	case 0xFF: // HuC1+RAM+BATTERY
+		return nil, CartError("Unsupported Mapper HuC1+RAM+BATTERY")
+	}
+
+	return nil, CartError("Unexpected CartType")
 }
 
 func LoadCartridge(filepath string) (*Cart, error) {
@@ -119,6 +184,12 @@ func LoadCartridge(filepath string) (*Cart, error) {
 	if fi.Size() != off {
 		return nil, CartError("Unread data at the end of the cartridge")
 	}
+
+	mapper, err := getMapper(res)
+	if err != nil {
+		return nil, err
+	}
+	res.Map = mapper
 
 	return res, nil
 }

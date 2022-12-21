@@ -77,6 +77,7 @@ func (pl *SDLPlugin) Run(romFilename string) error {
 		return err
 	}
 	console.CPU.EnableDisas = false
+	console.PrintDebug = false
 
 	running := true
 	for running {
@@ -88,8 +89,9 @@ func (pl *SDLPlugin) Run(romFilename string) error {
 			}
 		}
 
-		cycles := console.Step()
-		sdl.Delay(uint32(console.GetMs(cycles)))
+		console.Step()
+		// cycles := console.Step()
+		// sdl.Delay(uint32(console.GetMs(cycles)))
 	}
 
 	return nil

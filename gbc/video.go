@@ -71,6 +71,7 @@ func MakePpu(GBC *Console, videoDriver VideoDriver) *Ppu {
 	ppu := &Ppu{
 		Driver: videoDriver,
 		GBC:    GBC,
+		Mode:   ACCESS_OAM,
 	}
 	return ppu
 }

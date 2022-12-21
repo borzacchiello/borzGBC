@@ -148,13 +148,15 @@ func (cons *Console) writeIO(addr uint16, value uint8) {
 
 func (cons *Console) Read(addr uint16) uint8 {
 	switch {
-	case 0x0000 <= addr && addr <= 0x3FFF:
+	case 0x0000 <= addr && addr <= 0x7FFF:
 		if cons.InBootROM && int(addr) < len(cons.BootROM) {
 			return cons.BootROM[addr]
 		}
-		return cons.Cart.ROMBanks[0][addr]
+		return cons.Cart.Map.MapperRead(addr)
 	case 0x8000 <= addr && addr <= 0x9FFF:
 		return cons.PPU.Read(addr - 0x8000)
+	case 0xA000 <= addr && addr <= 0xBFFF:
+		return cons.Cart.Map.MapperRead(addr)
 	case 0xC000 <= addr && addr <= 0xDFFF:
 		return cons.WorkRAM[addr-0xC000]
 	case 0xE000 <= addr && addr <= 0xFDFF:
@@ -175,11 +177,17 @@ func (cons *Console) Read(addr uint16) uint8 {
 
 func (cons *Console) Write(addr uint16, value uint8) {
 	switch {
+	case 0x0000 <= addr && addr <= 0x7FFF:
+		cons.Cart.Map.MapperWrite(addr, value)
+		return
 	case 0x8000 <= addr && addr <= 0x9FFF:
 		cons.PPU.Write(addr-0x8000, value)
 		return
+	case 0xA000 <= addr && addr <= 0xBFFF:
+		cons.Cart.Map.MapperWrite(addr, value)
+		return
 	case 0xC000 <= addr && addr <= 0xDFFF:
-		cons.WorkRAM[addr-0x8000] = value
+		cons.WorkRAM[addr-0xC000] = value
 		return
 	case 0xE000 <= addr && addr <= 0xFDFF:
 		cons.Write(addr-0x2000, value)
@@ -238,6 +246,8 @@ func MakeConsole(rom_filepath string, videoDriver VideoDriver) (*Console, error)
 	return res, nil
 }
 
+var prevCycles int = 0
+
 func (cons *Console) Step() int {
 	prevFrame := cons.PPU.FrameCount
 
@@ -247,8 +257,8 @@ func (cons *Console) Step() int {
 		if cons.PrintDebug {
 			var cpu *z80cpu.Z80Cpu = cons.CPU
 			_, disas_str := cons.CPU.Disas.DisassembleOneFromCPU(cons.CPU)
-			fmt.Fprintf(os.Stderr, "%s |PC=%04x SP=%04x A=%02x B=%02x C=%02x D=%02x E=%02x H=%02x L=%02x F=%02x LY=%02x\n",
-				disas_str, cpu.PC, cpu.SP, cpu.A, cpu.B, cpu.C, cpu.D, cpu.E, cpu.H, cpu.L, cpu.PackFlags(), cons.PPU.LY)
+			fmt.Fprintf(os.Stderr, "%s |CYC=%d PC=%04x SP=%04x A=%02x B=%02x C=%02x D=%02x E=%02x H=%02x L=%02x F=%02x IV=%02x PPUC=%04d LY=%02x MEM=%02x\n",
+				disas_str, prevCycles, cpu.PC, cpu.SP, cpu.A, cpu.B, cpu.C, cpu.D, cpu.E, cpu.H, cpu.L, cpu.PackFlags(), cpu.IE&cpu.IF, cons.PPU.CycleCount, cons.PPU.LY, cons.Read(cpu.SP))
 		}
 
 		cpuCycles := cons.CPU.ExecOne()
@@ -256,6 +266,7 @@ func (cons *Console) Step() int {
 		cons.timer.Tick(cpuCycles)
 
 		totCycles += cpuCycles
+		prevCycles = cpuCycles
 	}
 
 	return totCycles

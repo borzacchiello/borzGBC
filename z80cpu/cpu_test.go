@@ -238,6 +238,31 @@ func TestRegcoupleInc(t *testing.T) {
 	}
 }
 
+func TestCallRet(t *testing.T) {
+	var prog = []byte{
+		0xcd, 0x04, 0x11, // 00: call 0x1104
+		0x76, //             03: halt
+		0xc9, //             04: ret
+	}
+	memory := &TestMemory{}
+	memory.WriteBuffer(0x1100, prog)
+
+	cpu := MakeZ80Cpu(memory)
+	cpu.PC = 0x1100
+	cpu.ExecOne()
+	if cpu.Mem.Read(cpu.SP) != 0x03 || cpu.Mem.Read(cpu.SP+1) != 0x11 {
+		t.Errorf("Invalid address on stack %02x%02x", cpu.Mem.Read(cpu.SP), cpu.Mem.Read(cpu.SP+1))
+	}
+	cpu.ExecOne()
+	if cpu.PC != 0x1103 {
+		t.Errorf("Invalid ret address %04x", cpu.PC)
+	}
+	cpu.ExecOne()
+	if !cpu.isHalted {
+		t.Errorf("CPU is not Halted")
+	}
+}
+
 func TestProgHLToHex(t *testing.T) {
 	var prog = []byte{
 		0x00, 0x00, 0x00, // 00: nop (x3)

@@ -10,6 +10,8 @@ type Z80Disas struct {
 	off  uint16
 	data []byte
 	cpu  *Z80Cpu
+
+	opcodes_acc []byte
 }
 
 type Z80DisasError string
@@ -29,6 +31,7 @@ func (disas *Z80Disas) getByte() (error, uint8) {
 	} else {
 		v = disas.cpu.Mem.Read(disas.off)
 	}
+	disas.opcodes_acc = append(disas.opcodes_acc, v)
 
 	disas.off += 1
 	return nil, v
@@ -53,6 +56,8 @@ func (disas *Z80Disas) getWord() (error, uint16) {
 }
 
 func (disas *Z80Disas) disassembleOne() (error, int, string) {
+	disas.opcodes_acc = make([]byte, 0)
+
 	var instr string
 
 	err, opcode := disas.getByte()
@@ -89,7 +94,16 @@ func (disas *Z80Disas) disassembleOne() (error, int, string) {
 		instr = strings.Replace(instr, "n", val_str, 1)
 	}
 
-	instr = fmt.Sprintf("%04x: %s", disas.addr, instr)
+	opcodeStr := ""
+	for i := 0; i < 4; i++ {
+		if i < len(disas.opcodes_acc) {
+			opcodeStr += fmt.Sprintf("%02x ", disas.opcodes_acc[i])
+		} else {
+			opcodeStr += "   "
+		}
+	}
+
+	instr = fmt.Sprintf("%04x: %s%s", disas.addr, opcodeStr, instr)
 	return nil, int(disas.off), instr
 }
 
