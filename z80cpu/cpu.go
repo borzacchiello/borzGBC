@@ -575,6 +575,15 @@ func handler_call(cpu *Z80Cpu) {
 	cpu.PC = addr
 }
 
+func handler_call_IF(cpu *Z80Cpu, cond bool) {
+	addr := cpu.getPC16()
+	if cond {
+		cpu.branchWasTaken = true
+		cpu.StackPush16(cpu.PC)
+		cpu.PC = addr
+	}
+}
+
 // JR
 func handler_jr(cpu *Z80Cpu, off int8) {
 	cpu.PC = uint16(int(cpu.PC) + 1 + int(off))
@@ -826,7 +835,7 @@ var handlers = [256]func(*Z80Cpu){
 	func(cpu *Z80Cpu) { cpu.B, cpu.C = unpack_regcouple(cpu.StackPop16()) },                         // C1
 	func(cpu *Z80Cpu) { handler_jp_IF(cpu, cpu.getPC16(), !cpu.flagWasZero) },                       // C2
 	func(cpu *Z80Cpu) { handler_jp(cpu, cpu.getPC16()) },                                            // C3
-	func(cpu *Z80Cpu) { panic("Opcode C4 unimplemented") },                                          // C4
+	func(cpu *Z80Cpu) { handler_call_IF(cpu, !cpu.flagWasZero) },                                    // C4
 	func(cpu *Z80Cpu) { cpu.StackPush16(pack_regcouple(cpu.B, cpu.C)) },                             // C5
 	func(cpu *Z80Cpu) { handler_add_R_8(cpu, &cpu.A, cpu.getPC8()) },                                // C6
 	func(cpu *Z80Cpu) { handler_rst(cpu, 0) },                                                       // C7
@@ -834,7 +843,7 @@ var handlers = [256]func(*Z80Cpu){
 	func(cpu *Z80Cpu) { handler_ret(cpu) },                                                          // C9
 	func(cpu *Z80Cpu) { handler_jp_IF(cpu, cpu.getPC16(), cpu.flagWasZero) },                        // CA
 	func(cpu *Z80Cpu) { cb_handlers[cpu.getPC8()](cpu) },                                            // CB
-	func(cpu *Z80Cpu) { panic("Opcode CC unimplemented") },                                          // CC
+	func(cpu *Z80Cpu) { handler_call_IF(cpu, cpu.flagWasZero) },                                     // CC
 	func(cpu *Z80Cpu) { handler_call(cpu) },                                                         // CD
 	func(cpu *Z80Cpu) { handler_adc_R_8(cpu, &cpu.A, cpu.getPC8()) },                                // CE
 	func(cpu *Z80Cpu) { handler_rst(cpu, 8) },                                                       // CF
@@ -842,7 +851,7 @@ var handlers = [256]func(*Z80Cpu){
 	func(cpu *Z80Cpu) { cpu.D, cpu.E = unpack_regcouple(cpu.StackPop16()) },                         // D1
 	func(cpu *Z80Cpu) { handler_jp_IF(cpu, cpu.getPC16(), !cpu.flagCarry) },                         // D2
 	func(cpu *Z80Cpu) { handler_out(cpu, cpu.A) },                                                   // D3
-	func(cpu *Z80Cpu) { panic("Opcode D4 unimplemented") },                                          // D4
+	func(cpu *Z80Cpu) { handler_call_IF(cpu, !cpu.flagCarry) },                                      // D4
 	func(cpu *Z80Cpu) { cpu.StackPush16(pack_regcouple(cpu.D, cpu.E)) },                             // D5
 	func(cpu *Z80Cpu) { panic("Opcode D6 unimplemented") },                                          // D6
 	func(cpu *Z80Cpu) { handler_rst(cpu, 16) },                                                      // D7
@@ -850,7 +859,7 @@ var handlers = [256]func(*Z80Cpu){
 	func(cpu *Z80Cpu) { handler_ret(cpu); handler_ei(cpu) },                                         // D9
 	func(cpu *Z80Cpu) { handler_jp_IF(cpu, cpu.getPC16(), !cpu.flagCarry) },                         // DA
 	func(cpu *Z80Cpu) { panic("Opcode DB unimplemented") },                                          // DB
-	func(cpu *Z80Cpu) { panic("Opcode DC unimplemented") },                                          // DC
+	func(cpu *Z80Cpu) { handler_call_IF(cpu, cpu.flagCarry) },                                       // DC
 	func(cpu *Z80Cpu) { panic("Opcode DD unimplemented") },                                          // DD
 	func(cpu *Z80Cpu) { panic("Opcode DE unimplemented") },                                          // DE
 	func(cpu *Z80Cpu) { handler_rst(cpu, 24) },                                                      // DF
