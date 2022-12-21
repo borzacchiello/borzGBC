@@ -69,6 +69,9 @@ func (pl *SDLPlugin) SetPixel(x, y int, c uint32) {
 
 func (pl *SDLPlugin) CommitScreen() {
 	pl.Renderer.Present()
+
+	pl.Renderer.SetDrawColor(0xff, 0xff, 0xff, 0xff)
+	pl.Renderer.Clear()
 }
 
 func (pl *SDLPlugin) Run(romFilename string) error {

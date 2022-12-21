@@ -8,15 +8,15 @@ import (
 )
 
 var InterruptVBlank z80cpu.Z80Interrupt = z80cpu.Z80Interrupt{
-	Mask: 0, Addr: 0x40, Name: "VBLANK"}
+	Mask: 1, Addr: 0x40, Name: "VBLANK"}
 var InterruptLCDStat z80cpu.Z80Interrupt = z80cpu.Z80Interrupt{
-	Mask: 1, Addr: 0x48, Name: "LCDSTAT"}
+	Mask: 1 << 1, Addr: 0x48, Name: "LCDSTAT"}
 var InterruptTimer z80cpu.Z80Interrupt = z80cpu.Z80Interrupt{
-	Mask: 2, Addr: 0x50, Name: "TIMER"}
+	Mask: 1 << 2, Addr: 0x50, Name: "TIMER"}
 var InterruptSerial z80cpu.Z80Interrupt = z80cpu.Z80Interrupt{
-	Mask: 3, Addr: 0x58, Name: "SERIAL"}
+	Mask: 1 << 3, Addr: 0x58, Name: "SERIAL"}
 var InterruptJoypad z80cpu.Z80Interrupt = z80cpu.Z80Interrupt{
-	Mask: 4, Addr: 0x60, Name: "JOYPAD"}
+	Mask: 1 << 4, Addr: 0x60, Name: "JOYPAD"}
 
 const GBCPU_FREQ = 4194304
 

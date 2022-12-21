@@ -135,6 +135,22 @@ func TestCp(t *testing.T) {
 	}
 }
 
+func TestSBC(t *testing.T) {
+	var prog = []byte{
+		0xde, 0x80, // SBC A, 0x80
+	}
+	memory := &TestMemory{}
+	memory.WriteBuffer(0, prog)
+
+	cpu := Z80Cpu{Mem: memory}
+	cpu.A = 0
+
+	cpu.ExecOne()
+	if cpu.A != 0x80 || !cpu.flagCarry {
+		t.Errorf("cpu.A=%02x (exp 0x80), cpu.flagCarry=%v (exp: true)", cpu.A, cpu.flagCarry)
+	}
+}
+
 func TestBit(t *testing.T) {
 	var prog = []byte{
 		0x3e, 0x10, // ld a, 0x10
