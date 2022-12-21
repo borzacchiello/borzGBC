@@ -45,7 +45,7 @@ func getMapper(cart *Cart) (Mapper, error) {
 	case 0x00: // ROM ONLY
 		return ROMOnlyMapper{cart: cart}, nil
 	case 0x01: // MBC1
-		return nil, CartError("Unsupported Mapper MBC1")
+		return MakeMBC1Mapper(cart), nil
 	case 0x02: // MBC1+RAM
 		return nil, CartError("Unsupported Mapper MBC1+RAM")
 	case 0x03: // MBC1+RAM+BATTERY
