@@ -99,10 +99,33 @@ func (pl *SDLPlugin) Run(romFilename string) error {
 		start := time.Now()
 
 		for event := sdl.PollEvent(); event != nil; event = sdl.PollEvent() {
-			switch event.(type) {
+			switch t := event.(type) {
 			case *sdl.QuitEvent:
 				running = false
 				break
+			case *sdl.KeyboardEvent:
+				if t.Repeat != 0 {
+					break
+				}
+				keyCode := t.Keysym.Sym
+				switch keyCode {
+				case sdl.K_z:
+					console.Input.A = t.State == sdl.PRESSED
+				case sdl.K_x:
+					console.Input.B = t.State == sdl.PRESSED
+				case sdl.K_RETURN:
+					console.Input.START = t.State == sdl.PRESSED
+				case sdl.K_BACKSPACE:
+					console.Input.SELECT = t.State == sdl.PRESSED
+				case sdl.K_UP:
+					console.Input.UP = t.State == sdl.PRESSED
+				case sdl.K_DOWN:
+					console.Input.DOWN = t.State == sdl.PRESSED
+				case sdl.K_LEFT:
+					console.Input.LEFT = t.State == sdl.PRESSED
+				case sdl.K_RIGHT:
+					console.Input.RIGHT = t.State == sdl.PRESSED
+				}
 			}
 		}
 

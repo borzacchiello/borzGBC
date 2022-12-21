@@ -25,6 +25,7 @@ type Console struct {
 	CPU   *z80cpu.Z80Cpu
 	PPU   *Ppu
 	timer *Timer
+	Input *Joypad
 
 	CPUFreq int
 
@@ -42,6 +43,8 @@ type Console struct {
 
 func (cons *Console) readIO(addr uint16) uint8 {
 	switch {
+	case addr == 0xFF00:
+		return cons.Input.PackButtons()
 	case addr == 0xFF04:
 		return cons.timer.DIV
 	case addr == 0xFF0F:
@@ -92,6 +95,9 @@ func (cons *Console) dmaTransfer(value uint8) {
 
 func (cons *Console) writeIO(addr uint16, value uint8) {
 	switch {
+	case addr == 0xFF00:
+		cons.Input.DirectionSelector = value&(1<<4) == 0
+		cons.Input.ActionSelector = value&(1<<5) == 0
 	case addr == 0xFF04:
 		cons.timer.Reset()
 		return
@@ -229,6 +235,7 @@ func MakeConsole(rom_filepath string, videoDriver VideoDriver) (*Console, error)
 
 	res := &Console{
 		Cart:      cart,
+		Input:     &Joypad{},
 		CPUFreq:   GBCPU_FREQ,
 		BootROM:   boot,
 		InBootROM: true,
