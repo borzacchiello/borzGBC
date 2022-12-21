@@ -50,8 +50,8 @@ type Ppu struct {
 	Driver VideoDriver
 	GBC    *Console
 
-	VRAM_1 [8192]uint8
-	VRAM_2 [8192]uint8
+	VRAM_1 [0x2000]uint8
+	VRAM_2 [0x2000]uint8
 
 	STAT, LCDC      uint8
 	SCY, SCX        uint8
@@ -83,15 +83,15 @@ func (ppu *Ppu) setPixel(x, y int, c uint8, palette *Palette) {
 }
 
 func (ppu *Ppu) Read(addr uint16) uint8 {
-	if addr > 8192 {
-		return ppu.VRAM_2[addr-8192]
+	if addr >= 0x2000 {
+		return ppu.VRAM_2[addr-0x2000]
 	}
 	return ppu.VRAM_1[addr]
 }
 
 func (ppu *Ppu) Write(addr uint16, value uint8) {
-	if addr > 8192 {
-		ppu.VRAM_2[addr-8192] = value
+	if addr > 0x2000 {
+		ppu.VRAM_2[addr-0x2000] = value
 		return
 	}
 	ppu.VRAM_1[addr] = value
@@ -169,12 +169,19 @@ func getPixelColor(p1, p2 uint8, tile_pixel int) uint8 {
 func (ppu *Ppu) drawBgLine(line uint8) {
 	palette := ppu.loadPalette(ppu.BGP)
 
-	tile_set_addr := TILE_SET_ZERO_ADDRESS
-	if !ppu.BgWindowTileData() {
+	use_tile_set_zero := ppu.BgWindowTileData()
+	use_tile_map_zero := !ppu.BgTileMapDisplay()
+
+	var tile_set_addr uint16 = 0
+	var tile_map_addr uint16 = 0
+	if use_tile_set_zero {
+		tile_set_addr = TILE_SET_ZERO_ADDRESS
+	} else {
 		tile_set_addr = TILE_SET_ONE_ADDRESS
 	}
-	tile_map_addr := TILE_MAP_ZERO_ADDRESS
-	if ppu.BgTileMapDisplay() {
+	if use_tile_map_zero {
+		tile_map_addr = TILE_MAP_ZERO_ADDRESS
+	} else {
 		tile_map_addr = TILE_MAP_ONE_ADDRESS
 	}
 
@@ -197,9 +204,11 @@ func (ppu *Ppu) drawBgLine(line uint8) {
 
 		tile_id := ppu.GBC.Read(tile_id_addr)
 
-		tile_data_mem_off := int(tile_id) * TILE_BYTES
-		if !ppu.BgWindowTileData() {
-			tile_data_mem_off = (int(tile_id) + 128) * TILE_BYTES
+		var tile_data_mem_off int
+		if use_tile_set_zero {
+			tile_data_mem_off = int(tile_id) * TILE_BYTES
+		} else {
+			tile_data_mem_off = int(uint8(tile_id)+128) * TILE_BYTES
 		}
 
 		tile_data_line_off := tile_pixel_y * 2
@@ -216,12 +225,19 @@ func (ppu *Ppu) drawBgLine(line uint8) {
 func (ppu *Ppu) drawWindowLine(line uint8) {
 	palette := ppu.loadPalette(ppu.BGP)
 
-	tile_set_addr := TILE_SET_ZERO_ADDRESS
-	if !ppu.BgWindowTileData() {
+	use_tile_set_zero := ppu.BgWindowTileData()
+	use_tile_map_zero := !ppu.BgTileMapDisplay()
+
+	var tile_set_addr uint16 = 0
+	var tile_map_addr uint16 = 0
+	if use_tile_set_zero {
+		tile_set_addr = TILE_SET_ZERO_ADDRESS
+	} else {
 		tile_set_addr = TILE_SET_ONE_ADDRESS
 	}
-	tile_map_addr := TILE_MAP_ZERO_ADDRESS
-	if ppu.WindowTileMap() {
+	if use_tile_map_zero {
+		tile_map_addr = TILE_MAP_ZERO_ADDRESS
+	} else {
 		tile_map_addr = TILE_MAP_ONE_ADDRESS
 	}
 
@@ -242,9 +258,11 @@ func (ppu *Ppu) drawWindowLine(line uint8) {
 
 		tile_id := ppu.GBC.Read(tile_id_addr)
 
-		tile_data_mem_off := int(tile_id) * TILE_BYTES
-		if ppu.BgWindowTileData() {
-			tile_data_mem_off = (int(tile_id) + 128) * TILE_BYTES
+		var tile_data_mem_off int
+		if use_tile_set_zero {
+			tile_data_mem_off = int(tile_id) * TILE_BYTES
+		} else {
+			tile_data_mem_off = int(uint8(tile_id)+128) * TILE_BYTES
 		}
 
 		tile_data_line_off := tile_pixel_y * 2
@@ -283,7 +301,7 @@ func makeTile(GBC *Console, addr uint16, mult int) *Tile {
 		p2 := GBC.Read(line_start + 1)
 
 		for x := 0; x < TILE_WIDTH_PX; x++ {
-			v := ((p2>>(7-x))&1)<<1 | (p1>>(7-x))&1
+			v := getPixelColor(p1, p2, x)
 			res.buffer[pixelIndex(x, tile_line)] = v
 		}
 	}
@@ -318,23 +336,23 @@ func (ppu *Ppu) drawSprite(sprite_id int) {
 	pattern_n := ppu.GBC.Read(oamStart + 2)
 	sprite_attrs := ppu.GBC.Read(oamStart + 3)
 
-	use_palette_1 := sprite_attrs&(1<<4) != 0
-	flip_x := sprite_attrs&(1<<5) != 0
-	flip_y := sprite_attrs&(1<<6) != 0
-	obj_behind_bg := sprite_attrs&(1<<7) != 0
+	use_palette_1 := (sprite_attrs & (1 << 4)) != 0
+	flip_x := (sprite_attrs & (1 << 5)) != 0
+	flip_y := (sprite_attrs & (1 << 6)) != 0
+	obj_behind_bg := (sprite_attrs & (1 << 7)) != 0
 
 	palette := ppu.loadPalette(ppu.OBP0)
 	if use_palette_1 {
 		palette = ppu.loadPalette(ppu.OBP1)
 	}
 
-	tile_off := pattern_n * TILE_BYTES
+	tile_off := int(pattern_n) * TILE_BYTES
 
 	pattern_addr := tile_set_location + uint16(tile_off)
 
 	tile := makeTile(ppu.GBC, pattern_addr, sprite_multiplier)
-	start_y := sprite_y - 16
-	start_x := sprite_x - 8
+	start_y := int(sprite_y) - 16
+	start_x := int(sprite_x) - 8
 
 	for y := 0; y < TILE_HEIGHT_PX*sprite_multiplier; y++ {
 		for x := 0; x < TILE_WIDTH_PX; x++ {
@@ -352,9 +370,9 @@ func (ppu *Ppu) drawSprite(sprite_id int) {
 				continue
 			}
 
-			screen_x := int(start_x) + x
-			screen_y := int(start_y) + y
-			if screen_x >= SCREEN_WIDTH || screen_y >= SCREEN_HEIGHT {
+			screen_x := start_x + x
+			screen_y := start_y + y
+			if screen_x < 0 || screen_y < 0 || screen_x >= SCREEN_WIDTH || screen_y >= SCREEN_HEIGHT {
 				continue
 			}
 
@@ -407,7 +425,7 @@ func (ppu *Ppu) Tick(cycles int) {
 			ppu.Mode = HBLANK
 
 			lyConincidence := ppu.LY == ppu.LYC
-			if (ppu.STAT&4 != 0) || (ppu.STAT&64 != 0 && lyConincidence) {
+			if (ppu.STAT&8 != 0) || (ppu.STAT&64 != 0 && lyConincidence) {
 				ppu.GBC.CPU.SetInterrupt(InterruptLCDStat.Mask)
 			}
 
