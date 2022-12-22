@@ -97,6 +97,7 @@ func (ppu *Ppu) Write(addr uint16, value uint8) {
 	ppu.VRAM_1[addr] = value
 }
 
+// LCDC Values
 func (ppu *Ppu) DisplayEnabled() bool {
 	return (ppu.LCDC>>7)&1 != 0
 }
@@ -127,6 +128,44 @@ func (ppu *Ppu) SpritesEnabled() bool {
 
 func (ppu *Ppu) BgEnabled() bool {
 	return ppu.LCDC&1 != 0
+}
+
+// STAT Values
+func (ppu *Ppu) modeFlag() uint8 {
+	return ppu.STAT & 3
+}
+
+func (ppu *Ppu) coincidenceFlag() bool {
+	return (ppu.STAT>>2)&1 != 0
+}
+
+func (ppu *Ppu) hblankInterrupt() bool {
+	return (ppu.STAT>>3)&1 != 0
+}
+
+func (ppu *Ppu) vblankInterrupt() bool {
+	return (ppu.STAT>>4)&1 != 0
+}
+
+func (ppu *Ppu) oamInterrupt() bool {
+	return (ppu.STAT>>5)&1 != 0
+}
+
+func (ppu *Ppu) coincidenceInterrupt() bool {
+	return (ppu.STAT>>6)&1 != 0
+}
+
+func (ppu *Ppu) setMode(mode PpuMode) {
+	ppu.Mode = mode & 3
+	ppu.STAT &= ^uint8(3)
+	ppu.STAT |= uint8(ppu.Mode)
+}
+
+func (ppu *Ppu) setCoincidenceFlag(value bool) {
+	ppu.STAT &= ^uint8(4)
+	if value {
+		ppu.STAT |= 4
+	}
 }
 
 func getRGBFromColor(c uint8) uint32 {
@@ -409,29 +448,38 @@ func (ppu *Ppu) writeSprites() {
 	}
 }
 
+func (ppu *Ppu) checkCoincidenceLY_LYC() {
+	ppu.setCoincidenceFlag(ppu.LYC == ppu.LY)
+
+	if ppu.coincidenceFlag() && ppu.coincidenceInterrupt() {
+		ppu.GBC.CPU.SetInterrupt(InterruptLCDStat.Mask)
+	}
+}
+
 func (ppu *Ppu) Tick(cycles int) {
 	ppu.CycleCount += cycles
+
+	if !ppu.DisplayEnabled() {
+		ppu.CycleCount = 0
+		ppu.LY = 0
+		ppu.setMode(ACCESS_OAM)
+		return
+	}
+
 	switch ppu.Mode {
 	case ACCESS_OAM:
 		if ppu.CycleCount >= CLOCKS_ACCESS_OAM {
 			ppu.CycleCount %= CLOCKS_ACCESS_OAM
-			ppu.Mode = ACCESS_VRAM
-
-			ppu.STAT |= 3
+			ppu.setMode(ACCESS_VRAM)
 		}
 	case ACCESS_VRAM:
 		if ppu.CycleCount >= CLOCKS_ACCESS_VRAM {
 			ppu.CycleCount %= CLOCKS_ACCESS_VRAM
-			ppu.Mode = HBLANK
+			ppu.setMode(HBLANK)
 
-			lyConincidence := ppu.LY == ppu.LYC
-			if (ppu.STAT&8 != 0) || (ppu.STAT&64 != 0 && lyConincidence) {
+			ppu.setCoincidenceFlag(ppu.LYC == ppu.LY)
+			if ppu.hblankInterrupt() || (ppu.coincidenceFlag() && ppu.coincidenceInterrupt()) {
 				ppu.GBC.CPU.SetInterrupt(InterruptLCDStat.Mask)
-			}
-
-			ppu.STAT &= ^uint8(7)
-			if lyConincidence {
-				ppu.STAT |= 4
 			}
 		}
 	case HBLANK:
@@ -442,14 +490,10 @@ func (ppu *Ppu) Tick(cycles int) {
 
 			ppu.LY += 1
 			if ppu.LY == 144 {
-				ppu.Mode = VBLANK
-				ppu.STAT &= ^uint8(2)
-				ppu.STAT |= 1
+				ppu.setMode(VBLANK)
 				ppu.GBC.CPU.SetInterrupt(InterruptVBlank.Mask)
 			} else {
-				ppu.Mode = ACCESS_OAM
-				ppu.STAT |= 2
-				ppu.STAT &= ^uint8(1)
+				ppu.setMode(ACCESS_OAM)
 			}
 		}
 	case VBLANK:
@@ -457,15 +501,13 @@ func (ppu *Ppu) Tick(cycles int) {
 			ppu.CycleCount %= CLOCKS_VBLANK
 
 			ppu.LY += 1
-			if ppu.LY == 154 {
+			if ppu.LY == 153 {
 				ppu.writeSprites()
 				ppu.Driver.CommitScreen()
 				ppu.FrameCount += 1
 
 				ppu.LY = 0
-				ppu.Mode = ACCESS_OAM
-				ppu.STAT |= 2
-				ppu.STAT &= ^uint8(1)
+				ppu.setMode(ACCESS_OAM)
 			}
 		}
 	}

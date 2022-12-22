@@ -100,6 +100,10 @@ func (m *MBC1Mapper) MapperWrite(addr uint16, value uint8) {
 		return
 	case 0x2000 <= addr && addr <= 0x3FFF:
 		m.romBank = value & 0x1f
+		if m.romBank == 0 {
+			m.romBank = 1
+		}
+		return
 	case 0x4000 <= addr && addr <= 0x5FFF:
 		m.ramBank = value & 3
 		return
