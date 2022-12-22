@@ -79,6 +79,7 @@ func MakePpu(GBC *Console, videoDriver VideoDriver) *Ppu {
 func (ppu *Ppu) setPixel(x, y int, c uint8, palette *Palette) {
 	color := palette.colors[c]
 
+	ppu.screen[x][y] = c
 	ppu.Driver.SetPixel(x, y, color)
 }
 
@@ -205,7 +206,7 @@ func getPixelColor(p1, p2 uint8, tile_pixel int) uint8 {
 	return ((p1>>(7-tile_pixel))&1)<<1 | (p2>>(7-tile_pixel))&1
 }
 
-func (ppu *Ppu) drawBgLine(line uint8) {
+func (ppu *Ppu) drawBgLine() {
 	palette := ppu.loadPalette(ppu.BGP)
 
 	use_tile_set_zero := ppu.BgWindowTileData()
@@ -224,7 +225,7 @@ func (ppu *Ppu) drawBgLine(line uint8) {
 		tile_map_addr = TILE_MAP_ONE_ADDRESS
 	}
 
-	screen_y := int(line)
+	screen_y := int(ppu.LY)
 	for screen_x := 0; screen_x < SCREEN_WIDTH; screen_x++ {
 		scrolled_x := screen_x + int(ppu.SCX)
 		scrolled_y := screen_y + int(ppu.SCY)
@@ -261,7 +262,7 @@ func (ppu *Ppu) drawBgLine(line uint8) {
 	}
 }
 
-func (ppu *Ppu) drawWindowLine(line uint8) {
+func (ppu *Ppu) drawWindowLine() {
 	palette := ppu.loadPalette(ppu.BGP)
 
 	use_tile_set_zero := ppu.BgWindowTileData()
@@ -280,7 +281,7 @@ func (ppu *Ppu) drawWindowLine(line uint8) {
 		tile_map_addr = TILE_MAP_ONE_ADDRESS
 	}
 
-	screen_y := int(line)
+	screen_y := int(ppu.LY)
 	scrolled_y := screen_y - int(ppu.WY)
 
 	for screen_x := 0; screen_x < SCREEN_WIDTH; screen_x++ {
@@ -424,17 +425,17 @@ func (ppu *Ppu) drawSprite(sprite_id int) {
 	}
 }
 
-func (ppu *Ppu) writeScanline(line uint8) {
+func (ppu *Ppu) writeScanline() {
 	if !ppu.DisplayEnabled() {
 		return
 	}
 
 	if ppu.BgEnabled() {
-		ppu.drawBgLine(line)
+		ppu.drawBgLine()
 	}
 
 	if ppu.WindowEnabled() {
-		ppu.drawWindowLine(line)
+		ppu.drawWindowLine()
 	}
 }
 
@@ -477,8 +478,10 @@ func (ppu *Ppu) Tick(cycles int) {
 			ppu.CycleCount %= CLOCKS_ACCESS_VRAM
 			ppu.setMode(HBLANK)
 
-			ppu.setCoincidenceFlag(ppu.LYC == ppu.LY)
-			if ppu.hblankInterrupt() || (ppu.coincidenceFlag() && ppu.coincidenceInterrupt()) {
+			ppu.writeSprites()
+			ppu.writeScanline()
+
+			if ppu.hblankInterrupt() {
 				ppu.GBC.CPU.SetInterrupt(InterruptLCDStat.Mask)
 			}
 		}
@@ -486,14 +489,24 @@ func (ppu *Ppu) Tick(cycles int) {
 		if ppu.CycleCount >= CLOCKS_HBLANK {
 			ppu.CycleCount %= CLOCKS_HBLANK
 
-			ppu.writeScanline(ppu.LY)
-
 			ppu.LY += 1
+			ppu.checkCoincidenceLY_LYC()
+
 			if ppu.LY == 144 {
 				ppu.setMode(VBLANK)
+
+				ppu.Driver.CommitScreen()
+				ppu.FrameCount += 1
+
 				ppu.GBC.CPU.SetInterrupt(InterruptVBlank.Mask)
+				if ppu.vblankInterrupt() {
+					ppu.GBC.CPU.SetInterrupt(InterruptLCDStat.Mask)
+				}
 			} else {
 				ppu.setMode(ACCESS_OAM)
+				if ppu.oamInterrupt() {
+					ppu.GBC.CPU.SetInterrupt(InterruptLCDStat.Mask)
+				}
 			}
 		}
 	case VBLANK:
@@ -501,13 +514,14 @@ func (ppu *Ppu) Tick(cycles int) {
 			ppu.CycleCount %= CLOCKS_VBLANK
 
 			ppu.LY += 1
-			if ppu.LY == 153 {
-				ppu.writeSprites()
-				ppu.Driver.CommitScreen()
-				ppu.FrameCount += 1
+			ppu.checkCoincidenceLY_LYC()
 
+			if ppu.LY == 153 {
 				ppu.LY = 0
 				ppu.setMode(ACCESS_OAM)
+				if ppu.oamInterrupt() {
+					ppu.GBC.CPU.SetInterrupt(InterruptLCDStat.Mask)
+				}
 			}
 		}
 	}
