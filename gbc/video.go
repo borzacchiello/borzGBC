@@ -19,6 +19,7 @@ const (
 const (
 	SCREEN_WIDTH  int = 160
 	SCREEN_HEIGHT int = 144
+	MAX_SPRITES   int = 10
 )
 
 const (
@@ -46,12 +47,53 @@ type Palette struct {
 	colors [4]uint32
 }
 
+type Tile struct {
+	Pixels [8][8]uint8
+}
+
+type Sprite struct {
+	Ready bool
+	x, y  int
+	tile  uint8
+
+	options uint8
+}
+
+func (sprite *Sprite) gbcPaletteNumber() uint8 {
+	return sprite.options & 3
+}
+
+func (sprite *Sprite) gbcVramBank() uint8 {
+	return (sprite.options >> 3) & 1
+}
+
+func (sprite *Sprite) paletteNumber() uint8 {
+	return (sprite.options >> 4) & 1
+}
+
+func (sprite *Sprite) xFlip() uint8 {
+	return (sprite.options >> 5) & 1
+}
+
+func (sprite *Sprite) yFlip() uint8 {
+	return (sprite.options >> 6) & 1
+}
+
+func (sprite *Sprite) renderPriority() uint8 {
+	return (sprite.options >> 7) & 1
+}
+
 type Ppu struct {
 	Driver VideoDriver
 	GBC    *Console
 
 	VRAM_1 [0x2000]uint8
 	VRAM_2 [0x2000]uint8
+	OamRAM [0xA0]uint8
+
+	// VRAM tiles and sprites rearranged here
+	tiles   [512]Tile
+	sprites [40]Sprite
 
 	STAT, LCDC      uint8
 	SCY, SCX        uint8
@@ -65,37 +107,6 @@ type Ppu struct {
 	Mode       PpuMode
 	CycleCount int
 	FrameCount int
-}
-
-func MakePpu(GBC *Console, videoDriver VideoDriver) *Ppu {
-	ppu := &Ppu{
-		Driver: videoDriver,
-		GBC:    GBC,
-		Mode:   ACCESS_OAM,
-	}
-	return ppu
-}
-
-func (ppu *Ppu) setPixel(x, y int, c uint8, palette *Palette) {
-	color := palette.colors[c]
-
-	ppu.screen[x][y] = c
-	ppu.Driver.SetPixel(x, y, color)
-}
-
-func (ppu *Ppu) Read(addr uint16) uint8 {
-	if addr >= 0x2000 {
-		return ppu.VRAM_2[addr-0x2000]
-	}
-	return ppu.VRAM_1[addr]
-}
-
-func (ppu *Ppu) Write(addr uint16, value uint8) {
-	if addr > 0x2000 {
-		ppu.VRAM_2[addr-0x2000] = value
-		return
-	}
-	ppu.VRAM_1[addr] = value
 }
 
 // LCDC Values
@@ -156,6 +167,79 @@ func (ppu *Ppu) coincidenceInterrupt() bool {
 	return (ppu.STAT>>6)&1 != 0
 }
 
+func MakePpu(GBC *Console, videoDriver VideoDriver) *Ppu {
+	ppu := &Ppu{
+		Driver: videoDriver,
+		GBC:    GBC,
+		Mode:   ACCESS_OAM,
+	}
+	return ppu
+}
+
+func (ppu *Ppu) setPixel(x, y int, c uint8, palette *Palette) {
+	color := palette.colors[c]
+
+	ppu.screen[x][y] = c
+	ppu.Driver.SetPixel(x, y, color)
+}
+
+func (ppu *Ppu) ReadVRam(addr uint16) uint8 {
+	if addr >= 0x2000 {
+		return ppu.VRAM_2[addr-0x2000]
+	}
+	return ppu.VRAM_1[addr]
+}
+
+func (ppu *Ppu) WriteVRam(addr uint16, value uint8) {
+	if addr > 0x2000 {
+		ppu.VRAM_2[addr-0x2000] = value
+	} else {
+		ppu.VRAM_1[addr] = value
+	}
+
+	// Update tiles metadata
+	// It is not strictly needed, but helps readability during rendering process
+	addr &= 0xfffe
+	tile := (addr >> 4) & 0x1ff
+	y := (addr >> 1) & 7
+
+	for x := uint8(0); x < 8; x++ {
+		bitIndex := uint8(1 << (7 - x))
+		v := uint8(0)
+		if ppu.ReadVRam(addr)&bitIndex != 0 {
+			v += 1
+		}
+		if ppu.ReadVRam(addr+1)&bitIndex != 0 {
+			v += 2
+		}
+		ppu.tiles[tile].Pixels[y][x] = v
+	}
+}
+
+func (ppu *Ppu) ReadOam(addr uint16) uint8 {
+	return ppu.OamRAM[addr]
+}
+
+func (ppu *Ppu) WriteOam(addr uint16, value uint8) {
+	ppu.OamRAM[addr] = value
+
+	// Update sprites metadata
+	// It is not strictly needed, but helps readability during rendering process
+	sprite := &ppu.sprites[addr>>2]
+	sprite.Ready = false
+	switch addr & 3 {
+	case 0:
+		sprite.y = int(value) - 16
+	case 1:
+		sprite.x = int(value) - 8
+	case 2:
+		sprite.tile = value
+	case 3:
+		sprite.Ready = true
+		sprite.options = value
+	}
+}
+
 func (ppu *Ppu) setMode(mode PpuMode) {
 	ppu.Mode = mode & 3
 	ppu.STAT &= ^uint8(3)
@@ -190,10 +274,10 @@ func getRGBFromColor(c uint8) uint32 {
 
 func (ppu *Ppu) loadPalette(reg uint8) Palette {
 	var c0, c1, c2, c3 uint8
-	c0 = ((reg>>1)&1)<<1 | (reg>>0)&1
-	c1 = ((reg>>3)&1)<<1 | (reg>>2)&1
-	c2 = ((reg>>5)&1)<<1 | (reg>>4)&1
-	c3 = ((reg>>7)&1)<<1 | (reg>>6)&1
+	c0 = reg & 3
+	c1 = (reg >> 2) & 3
+	c2 = (reg >> 4) & 3
+	c3 = (reg >> 6) & 3
 
 	return Palette{colors: [4]uint32{
 		getRGBFromColor(c0),
@@ -207,220 +291,155 @@ func getPixelColor(p1, p2 uint8, tile_pixel int) uint8 {
 }
 
 func (ppu *Ppu) drawBgLine() {
+	addr := TILE_MAP_ZERO_ADDRESS
+	if ppu.BgTileMapDisplay() {
+		addr = TILE_MAP_ONE_ADDRESS
+	}
+
 	palette := ppu.loadPalette(ppu.BGP)
+	useTileSetZero := ppu.BgWindowTileData()
+	addr += ((uint16(ppu.SCY) + uint16(ppu.LY)) / 8 * 32) % 1024
 
-	use_tile_set_zero := ppu.BgWindowTileData()
-	use_tile_map_zero := !ppu.BgTileMapDisplay()
+	startRowAddr := addr
+	endRowAddr := addr + 32
+	addr += uint16(ppu.SCX) >> 3
 
-	var tile_set_addr uint16 = 0
-	var tile_map_addr uint16 = 0
-	if use_tile_set_zero {
-		tile_set_addr = TILE_SET_ZERO_ADDRESS
-	} else {
-		tile_set_addr = TILE_SET_ONE_ADDRESS
-	}
-	if use_tile_map_zero {
-		tile_map_addr = TILE_MAP_ZERO_ADDRESS
-	} else {
-		tile_map_addr = TILE_MAP_ONE_ADDRESS
-	}
-
+	screen_x := 0
 	screen_y := int(ppu.LY)
-	for screen_x := 0; screen_x < SCREEN_WIDTH; screen_x++ {
-		scrolled_x := screen_x + int(ppu.SCX)
-		scrolled_y := screen_y + int(ppu.SCY)
 
-		bg_map_x := scrolled_x % BG_MAP_SIZE
-		bg_map_y := scrolled_y % BG_MAP_SIZE
-
-		tile_x := bg_map_x / TILE_WIDTH_PX
-		tile_y := bg_map_y / TILE_HEIGHT_PX
-
-		tile_pixel_x := bg_map_x % TILE_WIDTH_PX
-		tile_pixel_y := bg_map_y % TILE_HEIGHT_PX
-
-		tile_index := tile_y*TILES_PER_LINE + tile_x
-		tile_id_addr := tile_map_addr + uint16(tile_index)
-
-		tile_id := ppu.GBC.Read(tile_id_addr)
-
-		var tile_data_mem_off int
-		if use_tile_set_zero {
-			tile_data_mem_off = int(tile_id) * TILE_BYTES
-		} else {
-			tile_data_mem_off = int(uint8(tile_id)+128) * TILE_BYTES
+	x := ppu.SCX & 7
+	y := (ppu.SCY + ppu.LY) & 7
+	for i := uint16(0); i < 21; i++ {
+		tileAddr := addr + i
+		if tileAddr >= endRowAddr {
+			tileAddr = startRowAddr + tileAddr%endRowAddr
 		}
 
-		tile_data_line_off := tile_pixel_y * 2
-		tile_line_data_start_addr := tile_set_addr + uint16(tile_data_mem_off) + uint16(tile_data_line_off)
+		tile := int(ppu.GBC.Read(tileAddr))
+		if !useTileSetZero && tile < 128 {
+			tile += 256
+		}
 
-		pixel_1 := ppu.GBC.Read(tile_line_data_start_addr)
-		pixel_2 := ppu.GBC.Read(tile_line_data_start_addr + 1)
+		for ; x < 8; x++ {
+			if screen_x >= SCREEN_WIDTH {
+				break
+			}
 
-		pixel_color := getPixelColor(pixel_1, pixel_2, tile_pixel_x)
-		ppu.setPixel(screen_x, screen_y, pixel_color, &palette)
+			color := ppu.tiles[tile].Pixels[y][x]
+			ppu.setPixel(screen_x, screen_y, color, &palette)
+			screen_x++
+		}
+		x = 0
 	}
 }
 
 func (ppu *Ppu) drawWindowLine() {
+	if ppu.WY > ppu.LY {
+		return
+	}
+
+	addr := TILE_MAP_ZERO_ADDRESS
+	if ppu.WindowTileMap() {
+		addr = TILE_MAP_ONE_ADDRESS
+	}
+
 	palette := ppu.loadPalette(ppu.BGP)
+	useTileSetZero := ppu.BgWindowTileData()
+	addr += ((uint16(ppu.LY) - uint16(ppu.WY)) / 8) * 32
 
-	use_tile_set_zero := ppu.BgWindowTileData()
-	use_tile_map_zero := !ppu.BgTileMapDisplay()
+	y := (uint16(ppu.LY) - uint16(ppu.WY)) & 7
 
-	var tile_set_addr uint16 = 0
-	var tile_map_addr uint16 = 0
-	if use_tile_set_zero {
-		tile_set_addr = TILE_SET_ZERO_ADDRESS
-	} else {
-		tile_set_addr = TILE_SET_ONE_ADDRESS
-	}
-	if use_tile_map_zero {
-		tile_map_addr = TILE_MAP_ZERO_ADDRESS
-	} else {
-		tile_map_addr = TILE_MAP_ONE_ADDRESS
-	}
-
+	screen_x := int(ppu.WX) - 7
 	screen_y := int(ppu.LY)
-	scrolled_y := screen_y - int(ppu.WY)
 
-	for screen_x := 0; screen_x < SCREEN_WIDTH; screen_x++ {
-		scrolled_x := screen_x + int(ppu.WX) - 7
-
-		tile_x := scrolled_x / TILE_WIDTH_PX
-		tile_y := scrolled_y / TILE_HEIGHT_PX
-
-		tile_pixel_x := scrolled_x % TILE_WIDTH_PX
-		tile_pixel_y := scrolled_y % TILE_HEIGHT_PX
-
-		tile_index := tile_y*TILES_PER_LINE + tile_x
-		tile_id_addr := tile_map_addr + uint16(tile_index)
-
-		tile_id := ppu.GBC.Read(tile_id_addr)
-
-		var tile_data_mem_off int
-		if use_tile_set_zero {
-			tile_data_mem_off = int(tile_id) * TILE_BYTES
-		} else {
-			tile_data_mem_off = int(uint8(tile_id)+128) * TILE_BYTES
+	for tileAddr := addr; tileAddr < addr+20; tileAddr++ {
+		tile := int(ppu.GBC.Read(tileAddr))
+		if !useTileSetZero && tile < 128 {
+			tile += 256
 		}
 
-		tile_data_line_off := tile_pixel_y * 2
-		tile_line_data_start_addr := tile_set_addr + uint16(tile_data_mem_off) + uint16(tile_data_line_off)
+		for x := 0; x < 8; x++ {
+			if screen_x >= SCREEN_WIDTH {
+				continue
+			}
 
-		pixel_1 := ppu.GBC.Read(tile_line_data_start_addr)
-		pixel_2 := ppu.GBC.Read(tile_line_data_start_addr + 1)
-
-		pixel_color := getPixelColor(pixel_1, pixel_2, tile_pixel_x)
-		ppu.setPixel(screen_x, screen_y, pixel_color, &palette)
-	}
-}
-
-type Tile struct {
-	buffer [TILE_HEIGHT_PX * 2 * TILE_WIDTH_PX]uint8
-}
-
-func pixelIndex(x, y int) int {
-	return y*TILE_HEIGHT_PX + x
-}
-
-func makeTile(GBC *Console, addr uint16, mult int) *Tile {
-	res := &Tile{}
-
-	for x := 0; x < TILE_WIDTH_PX; x++ {
-		for y := 0; y < TILE_HEIGHT_PX*mult; y++ {
-			res.buffer[pixelIndex(x, y)] = 0
+			color := ppu.tiles[tile].Pixels[y][x]
+			ppu.setPixel(screen_x, screen_y, color, &palette)
+			screen_x++
 		}
 	}
-
-	for tile_line := 0; tile_line < TILE_HEIGHT_PX*mult; tile_line++ {
-		index_into_tile := 2 * tile_line
-		line_start := addr + uint16(index_into_tile)
-
-		p1 := GBC.Read(line_start)
-		p2 := GBC.Read(line_start + 1)
-
-		for x := 0; x < TILE_WIDTH_PX; x++ {
-			v := getPixelColor(p1, p2, x)
-			res.buffer[pixelIndex(x, tile_line)] = v
-		}
-	}
-	return res
 }
 
-func (t *Tile) getPixel(x, y int) uint8 {
-	return t.buffer[pixelIndex(x, y)]
-}
-
-func (ppu *Ppu) drawSprite(sprite_id int) {
-	offInOam := uint16(sprite_id * SPRITE_BYTES)
-	oamStart := 0xFE00 + offInOam
-
-	sprite_y := ppu.GBC.Read(oamStart)
-	sprite_x := ppu.GBC.Read(oamStart + 1)
-
-	if sprite_y == 0 || sprite_y >= 160 {
-		return
-	}
-	if sprite_x == 0 || sprite_x >= 168 {
-		return
-	}
-
-	sprite_multiplier := 1
+func (ppu *Ppu) drawSprites() {
+	spriteHeight := 8
 	if ppu.SpriteSize() {
-		sprite_multiplier = 2
+		spriteHeight = 16
 	}
 
-	tile_set_location := TILE_SET_ZERO_ADDRESS
+	renderedSprites := 0
+	for i := 39; i >= 0; i-- {
+		sprite := &ppu.sprites[i]
+		if !sprite.Ready {
+			continue
+		}
+		if (sprite.y > int(ppu.LY)) || (sprite.y+spriteHeight) <= int(ppu.LY) {
+			continue
+		}
 
-	pattern_n := ppu.GBC.Read(oamStart + 2)
-	sprite_attrs := ppu.GBC.Read(oamStart + 3)
+		if renderedSprites >= MAX_SPRITES {
+			continue
+		}
+		renderedSprites++
 
-	use_palette_1 := (sprite_attrs & (1 << 4)) != 0
-	flip_x := (sprite_attrs & (1 << 5)) != 0
-	flip_y := (sprite_attrs & (1 << 6)) != 0
-	obj_behind_bg := (sprite_attrs & (1 << 7)) != 0
+		if (sprite.x < -7) || (sprite.x >= 160) {
+			continue
+		}
 
-	palette := ppu.loadPalette(ppu.OBP0)
-	if use_palette_1 {
-		palette = ppu.loadPalette(ppu.OBP1)
-	}
-
-	tile_off := int(pattern_n) * TILE_BYTES
-
-	pattern_addr := tile_set_location + uint16(tile_off)
-
-	tile := makeTile(ppu.GBC, pattern_addr, sprite_multiplier)
-	start_y := int(sprite_y) - 16
-	start_x := int(sprite_x) - 8
-
-	for y := 0; y < TILE_HEIGHT_PX*sprite_multiplier; y++ {
-		for x := 0; x < TILE_WIDTH_PX; x++ {
-			maybe_flipped_y := y
-			if flip_y {
-				maybe_flipped_y = TILE_HEIGHT_PX*sprite_multiplier - y - 1
+		pixelY := int(ppu.LY) - sprite.y
+		if sprite.yFlip() != 0 {
+			off := 0
+			if ppu.SpriteSize() {
+				off = 8
 			}
-			maybe_flipped_x := x
-			if flip_x {
-				maybe_flipped_x = TILE_WIDTH_PX - x - 1
+			pixelY = (7 + off) - pixelY
+		}
+
+		screen_x := 0
+		screen_y := int(ppu.LY)
+
+		for x := 0; x < 8; x++ {
+			tileNum := sprite.tile
+			if ppu.SpriteSize() {
+				tileNum &= 0xFE
 			}
 
-			color := tile.getPixel(maybe_flipped_x, maybe_flipped_y)
+			screen_x = sprite.x + x
+			if screen_x < 0 || screen_x >= SCREEN_WIDTH {
+				continue
+			}
+
+			pixelX := x
+			if sprite.xFlip() != 0 {
+				pixelX = 7 - x
+			}
+
+			palette := ppu.loadPalette(ppu.OBP0)
+			if sprite.paletteNumber() != 0 {
+				palette = ppu.loadPalette(ppu.OBP1)
+			}
+
+			color := uint8(0)
+			if ppu.SpriteSize() && pixelY >= 8 {
+				color = ppu.tiles[tileNum+1].Pixels[pixelY-8][pixelX]
+			} else {
+				color = ppu.tiles[tileNum].Pixels[pixelY][pixelX]
+			}
 			if color == 0 {
 				continue
 			}
-
-			screen_x := start_x + x
-			screen_y := start_y + y
-			if screen_x < 0 || screen_y < 0 || screen_x >= SCREEN_WIDTH || screen_y >= SCREEN_HEIGHT {
-				continue
+			if ppu.screen[screen_x][screen_y] == 0 || sprite.renderPriority() == 0 {
+				ppu.setPixel(screen_x, screen_y, color, &palette)
 			}
-
-			if ppu.screen[screen_x][screen_y] != 0 && obj_behind_bg {
-				continue
-			}
-
-			ppu.setPixel(screen_x, screen_y, color, &palette)
 		}
 	}
 }
@@ -437,15 +456,9 @@ func (ppu *Ppu) writeScanline() {
 	if ppu.WindowEnabled() {
 		ppu.drawWindowLine()
 	}
-}
 
-func (ppu *Ppu) writeSprites() {
-	if !ppu.SpritesEnabled() {
-		return
-	}
-
-	for i := 0; i < 40; i++ {
-		ppu.drawSprite(i)
+	if ppu.SpritesEnabled() {
+		ppu.drawSprites()
 	}
 }
 
@@ -478,7 +491,6 @@ func (ppu *Ppu) Tick(cycles int) {
 			ppu.CycleCount %= CLOCKS_ACCESS_VRAM
 			ppu.setMode(HBLANK)
 
-			ppu.writeSprites()
 			ppu.writeScanline()
 
 			if ppu.hblankInterrupt() {

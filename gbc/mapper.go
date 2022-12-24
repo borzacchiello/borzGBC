@@ -53,7 +53,7 @@ func MakeMBC1Mapper(cart *Cart) *MBC1Mapper {
 		cart:           cart,
 		bankMask:       uint8(calculateMask(uint(len(cart.ROMBanks)))),
 		ramMask:        uint8(calculateMask(uint(len(cart.RAMBanks)))),
-		ramEnabled:     true,
+		ramEnabled:     false,
 		romBank:        1,
 		ramBank:        0,
 		advBankingMode: false,

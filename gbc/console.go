@@ -32,7 +32,6 @@ type Console struct {
 	// Memory
 	HighRAM [0x80]byte
 	WorkRAM [0x8000]byte
-	OamRAM  [0xA0]byte
 
 	InBootROM bool
 	BootROM   []byte
@@ -160,7 +159,7 @@ func (cons *Console) Read(addr uint16) uint8 {
 		}
 		return cons.Cart.Map.MapperRead(addr)
 	case 0x8000 <= addr && addr <= 0x9FFF:
-		return cons.PPU.Read(addr - 0x8000)
+		return cons.PPU.ReadVRam(addr - 0x8000)
 	case 0xA000 <= addr && addr <= 0xBFFF:
 		return cons.Cart.Map.MapperRead(addr)
 	case 0xC000 <= addr && addr <= 0xDFFF:
@@ -168,7 +167,7 @@ func (cons *Console) Read(addr uint16) uint8 {
 	case 0xE000 <= addr && addr <= 0xFDFF:
 		return cons.Read(addr - 0x2000)
 	case 0xFE00 <= addr && addr <= 0xFE9F:
-		return cons.OamRAM[addr-0xFE00]
+		return cons.PPU.ReadOam(addr - 0xFE00)
 	case 0xFF00 <= addr && addr <= 0xFF7F:
 		return cons.readIO(addr)
 	case 0xFF80 <= addr && addr <= 0xFFFE:
@@ -187,7 +186,7 @@ func (cons *Console) Write(addr uint16, value uint8) {
 		cons.Cart.Map.MapperWrite(addr, value)
 		return
 	case 0x8000 <= addr && addr <= 0x9FFF:
-		cons.PPU.Write(addr-0x8000, value)
+		cons.PPU.WriteVRam(addr-0x8000, value)
 		return
 	case 0xA000 <= addr && addr <= 0xBFFF:
 		cons.Cart.Map.MapperWrite(addr, value)
@@ -199,7 +198,7 @@ func (cons *Console) Write(addr uint16, value uint8) {
 		cons.Write(addr-0x2000, value)
 		return
 	case 0xFE00 <= addr && addr <= 0xFE9F:
-		cons.OamRAM[addr-0xFE00] = value
+		cons.PPU.WriteOam(addr-0xFE00, value)
 		return
 	case 0xFF00 <= addr && addr <= 0xFF7F:
 		cons.writeIO(addr, value)
