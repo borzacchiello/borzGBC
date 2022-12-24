@@ -14,6 +14,9 @@ type SDLPlugin struct {
 	Surface       *sdl.Surface
 	Width, Height int
 	Scale         int
+
+	fastMode bool
+	slowMode bool
 }
 
 func MakeSDLPlugin(scale int) (*SDLPlugin, error) {
@@ -23,9 +26,11 @@ func MakeSDLPlugin(scale int) (*SDLPlugin, error) {
 		return nil, err
 	}
 	pl := &SDLPlugin{
-		Width:  160,
-		Height: 144,
-		Scale:  scale,
+		Width:    160,
+		Height:   144,
+		Scale:    scale,
+		fastMode: false,
+		slowMode: false,
 	}
 
 	pl.Window, pl.Renderer, err = sdl.CreateWindowAndRenderer(
@@ -33,6 +38,7 @@ func MakeSDLPlugin(scale int) (*SDLPlugin, error) {
 	if err != nil {
 		return nil, err
 	}
+	pl.setTitle()
 
 	pl.Surface, err = sdl.CreateRGBSurface(
 		0, int32(pl.Width), int32(pl.Height), 32, 0xFF000000, 0x00FF0000, 0x0000FF00, 0x000000FF)
@@ -86,6 +92,16 @@ func (pl *SDLPlugin) CommitScreen() {
 	pl.Renderer.Clear()
 }
 
+func (pl *SDLPlugin) setTitle() {
+	title := "BorzGBC"
+	if pl.fastMode {
+		title += " - FAST"
+	} else if pl.slowMode {
+		title += " - SLOW"
+	}
+	pl.Window.SetTitle(title)
+}
+
 func (pl *SDLPlugin) Run(console *gbc.Console) error {
 	running := true
 	for running {
@@ -102,6 +118,31 @@ func (pl *SDLPlugin) Run(console *gbc.Console) error {
 				}
 				keyCode := t.Keysym.Sym
 				switch keyCode {
+				case sdl.K_q:
+					running = false
+					break
+				case sdl.K_f:
+					if t.State == sdl.PRESSED {
+						console.CPUFreq = gbc.GBCPU_FREQ
+						if !pl.fastMode {
+							console.CPUFreq = gbc.GBCPU_FREQ * 2
+						}
+						pl.slowMode = false
+						pl.fastMode = !pl.fastMode
+						pl.setTitle()
+					}
+				case sdl.K_g:
+					if t.State == sdl.PRESSED {
+						console.CPUFreq = gbc.GBCPU_FREQ
+						if !pl.slowMode {
+							console.CPUFreq = gbc.GBCPU_FREQ / 2
+						}
+						pl.fastMode = false
+						pl.slowMode = !pl.slowMode
+						pl.setTitle()
+					}
+
+				// GB Keys
 				case sdl.K_z:
 					console.Input.A = t.State == sdl.PRESSED
 				case sdl.K_x:
