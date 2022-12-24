@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"borzGBC/gbc"
 	"borzGBC/mediaplugin"
 )
 
@@ -16,10 +17,19 @@ func main() {
 	pl, err := mediaplugin.MakeSDLPlugin(3)
 	if err != nil {
 		fmt.Printf("unable to create SDLPlugin: %s\n", err)
+		return
 	}
 	defer pl.Destroy()
 
-	err = pl.Run(os.Args[1])
+	console, err := gbc.MakeConsole(os.Args[1], pl)
+	if err != nil {
+		fmt.Printf("unable to create the console: %s\n", err)
+		return
+	}
+	console.CPU.EnableDisas = false
+	console.PrintDebug = false
+
+	err = pl.Run(console)
 	if err != nil {
 		fmt.Printf("unable to run the emulator: %s\n", err)
 	}

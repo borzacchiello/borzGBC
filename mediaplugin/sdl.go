@@ -86,14 +86,7 @@ func (pl *SDLPlugin) CommitScreen() {
 	pl.Renderer.Clear()
 }
 
-func (pl *SDLPlugin) Run(romFilename string) error {
-	console, err := gbc.MakeConsole(romFilename, pl)
-	if err != nil {
-		return err
-	}
-	console.CPU.EnableDisas = false
-	console.PrintDebug = false
-
+func (pl *SDLPlugin) Run(console *gbc.Console) error {
 	running := true
 	for running {
 		start := time.Now()
