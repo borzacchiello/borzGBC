@@ -47,6 +47,30 @@ func (cons *Console) readIO(addr uint16) uint8 {
 		return cons.timer.DIV
 	case addr == 0xFF0F:
 		return cons.CPU.IF
+	case 0xFF10 <= addr && addr <= 0xFF14:
+		// TODO: Audio - Channel 1: Tone & Sweep
+		return 0xFF
+	case 0xFF16 <= addr && addr <= 0xFF19:
+		// TODO: Audio - Channel 2: Tone
+		return 0xFF
+	case 0xFF1A <= addr && addr <= 0xFF1F:
+		// TODO: Audio - Channel 3: Wave Output
+		return 0xFF
+	case 0xFF20 <= addr && addr <= 0xFF23:
+		// TODO: Audio - Channel 4: Noise
+		return 0xFF
+	case addr == 0xFF24:
+		// TODO: Audio - Channel control/ON-OFF/Volume
+		return 0xFF
+	case addr == 0xFF25:
+		// TODO: Audio - Selection of sound output terminal
+		return 0xFF
+	case addr == 0xFF26:
+		// TODO: Audio - Sound on/off
+		return 0xFF
+	case 0xFF30 <= addr && addr <= 0xFF3F:
+		// TODO: Audio - Wave pattern RAM
+		return 0xFF
 	case addr == 0xFF40:
 		return cons.PPU.LCDC
 	case addr == 0xFF41:
@@ -101,6 +125,30 @@ func (cons *Console) writeIO(addr uint16, value uint8) {
 		return
 	case addr == 0xFF0F:
 		cons.CPU.IF = value
+		return
+	case 0xFF10 <= addr && addr <= 0xFF14:
+		// TODO: Audio - Channel 1: Tone & Sweep
+		return
+	case 0xFF16 <= addr && addr <= 0xFF19:
+		// TODO: Audio - Channel 2: Tone
+		return
+	case 0xFF1A <= addr && addr <= 0xFF1F:
+		// TODO: Audio - Channel 3: Wave Output
+		return
+	case 0xFF20 <= addr && addr <= 0xFF23:
+		// TODO: Audio - Channel 4: Noise
+		return
+	case addr == 0xFF24:
+		// TODO: Audio - Channel control/ON-OFF/Volume
+		return
+	case addr == 0xFF25:
+		// TODO: Audio - Selection of sound output terminal
+		return
+	case addr == 0xFF26:
+		// TODO: Audio - Sound on/off
+		return
+	case 0xFF30 <= addr && addr <= 0xFF3F:
+		// TODO: Audio - Wave pattern RAM
 		return
 	case addr == 0xFF40:
 		cons.PPU.LCDC = value
