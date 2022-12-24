@@ -130,3 +130,76 @@ func (m *MBC1Mapper) MapperWrite(addr uint16, value uint8) {
 	fmt.Printf("Unexpected address in MBC1Mapper Write: 0x%04x <- 0x%02x\n", addr, value)
 	return
 }
+
+type MBC5Mapper struct {
+	cart *Cart
+
+	ramEnabled     bool   // 0000 - 1FFF
+	romBank        uint16 // 2000 - 3FFF
+	ramBank        uint8  // 4000 - 5FFF
+	advBankingMode bool   // 6000 - 7FFF
+}
+
+func MakeMBC5Mapper(cart *Cart) *MBC5Mapper {
+	return &MBC5Mapper{
+		cart:           cart,
+		ramEnabled:     false,
+		romBank:        1,
+		ramBank:        0,
+		advBankingMode: false,
+	}
+}
+
+func (m *MBC5Mapper) MapperRead(addr uint16) uint8 {
+	switch {
+	case 0x0000 <= addr && addr <= 0x3FFF:
+		return m.cart.ROMBanks[0][addr]
+	case 0x4000 <= addr && addr <= 0x7FFF:
+		off := addr & 0x3FFF
+		bank := int(m.romBank)
+		return m.cart.ROMBanks[bank][off]
+	case 0xA000 <= addr && addr <= 0xBFFF:
+		if len(m.cart.RAMBanks) == 0 {
+			return 0x00
+		}
+		off := addr & 0x1FFF
+		return m.cart.RAMBanks[m.ramBank][off]
+	}
+
+	fmt.Printf("Unexpected address in MBC5Mapper Read: 0x%04x\n", addr)
+	return 0
+}
+
+func (m *MBC5Mapper) MapperWrite(addr uint16, value uint8) {
+	switch {
+	case 0x0000 <= addr && addr <= 0x1FFF:
+		if value&0xF == 0xA {
+			m.ramEnabled = true
+		} else {
+			m.ramEnabled = false
+		}
+		return
+	case 0x2000 <= addr && addr <= 0x2FFF:
+		m.romBank = (m.romBank & 0x100) | uint16(value)
+		m.romBank %= uint16(len(m.cart.ROMBanks))
+		return
+	case 0x3000 <= addr && addr <= 0x3FFF:
+		m.romBank = (m.romBank & 0xFF) | (uint16((value & 1)) << 8)
+		m.romBank %= uint16(len(m.cart.ROMBanks))
+		return
+	case 0x4000 <= addr && addr <= 0x5FFF:
+		m.ramBank = value & 0xf
+		m.ramBank %= uint8(len(m.cart.RAMBanks))
+		return
+	case 0xA000 <= addr && addr <= 0xBFFF:
+		if !m.ramEnabled || len(m.cart.RAMBanks) == 0 {
+			return
+		}
+		off := addr & 0x1FFF
+		m.cart.RAMBanks[m.ramBank][off] = value
+		return
+	}
+
+	fmt.Printf("Unexpected address in MBC5Mapper Write: 0x%04x <- 0x%02x\n", addr, value)
+	return
+}

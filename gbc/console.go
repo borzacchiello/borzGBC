@@ -147,7 +147,7 @@ func (cons *Console) writeIO(addr uint16, value uint8) {
 		cons.PPU.WX = value
 		return
 	default:
-		fmt.Printf("Unhandled IO Read @ %04x\n", addr)
+		fmt.Printf("Unhandled IO Write @ %04x <- %02x\n", addr, value)
 	}
 }
 
