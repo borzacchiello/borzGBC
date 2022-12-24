@@ -3,7 +3,6 @@ package gbc
 import (
 	"borzGBC/z80cpu"
 	"fmt"
-	"io/ioutil"
 	"os"
 )
 
@@ -218,12 +217,58 @@ func loadBoot(cart *Cart) ([]byte, error) {
 	if cart.header.CgbFlag == 0xC0 {
 		return nil, CartError("Unsupported cartridge type")
 	}
-	return ioutil.ReadFile("BootROMs/dmg.bin")
+	return os.ReadFile("BootROMs/dmg.bin")
+}
+
+func loadSav(cart *Cart) error {
+	savFilename := cart.filepath + ".sav"
+	data, err := os.ReadFile(savFilename)
+	if err != nil {
+		// No save file
+		return nil
+	}
+
+	if len(data) != len(cart.RAMBanks)*8192 {
+		return CartError("Invalid SAV file")
+	}
+
+	for i := 0; i < len(cart.RAMBanks); i++ {
+		off := i * 8192
+		copy(cart.RAMBanks[i][:], data[off:off+8192])
+	}
+	return nil
+}
+
+func storeSav(cart *Cart) error {
+	if len(cart.RAMBanks) == 0 {
+		return nil
+	}
+
+	savFilename := cart.filepath + ".sav"
+	f, err := os.Create(savFilename)
+	if err != nil {
+		return err
+	}
+
+	for i := 0; i < len(cart.RAMBanks); i++ {
+		_, err = f.Write(cart.RAMBanks[i][:])
+		if err != nil {
+			return err
+		}
+	}
+	if err = f.Close(); err != nil {
+		return err
+	}
+	return nil
 }
 
 func MakeConsole(rom_filepath string, videoDriver VideoDriver) (*Console, error) {
 	cart, err := LoadCartridge(rom_filepath)
 	if err != nil {
+		return nil, err
+	}
+
+	if err = loadSav(cart); err != nil {
 		return nil, err
 	}
 
@@ -250,6 +295,13 @@ func MakeConsole(rom_filepath string, videoDriver VideoDriver) (*Console, error)
 	res.CPU.RegisterInterrupt(InterruptJoypad)
 
 	return res, nil
+}
+
+func (cons *Console) Destroy() error {
+	if err := storeSav(cons.Cart); err != nil {
+		return err
+	}
+	return nil
 }
 
 var prevCycles int = 0

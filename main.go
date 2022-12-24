@@ -26,6 +26,8 @@ func main() {
 		fmt.Printf("unable to create the console: %s\n", err)
 		return
 	}
+	defer console.Destroy()
+
 	console.CPU.EnableDisas = false
 	console.PrintDebug = false
 
