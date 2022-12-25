@@ -44,7 +44,13 @@ func (cons *Console) readIO(addr uint16) uint8 {
 	case addr == 0xFF00:
 		return cons.Input.PackButtons()
 	case addr == 0xFF04:
-		return cons.timer.DIV
+		return uint8(cons.timer.DIV >> 8)
+	case addr == 0xFF05:
+		return cons.timer.TIMA
+	case addr == 0xFF06:
+		return cons.timer.TMA
+	case addr == 0xFF07:
+		return cons.timer.TAC
 	case addr == 0xFF0F:
 		return cons.CPU.IF
 	case 0xFF10 <= addr && addr <= 0xFF14:
@@ -61,13 +67,13 @@ func (cons *Console) readIO(addr uint16) uint8 {
 		return 0xFF
 	case addr == 0xFF24:
 		// TODO: Audio - Channel control/ON-OFF/Volume
-		return 0xFF
+		return 0
 	case addr == 0xFF25:
 		// TODO: Audio - Selection of sound output terminal
 		return 0xFF
 	case addr == 0xFF26:
 		// TODO: Audio - Sound on/off
-		return 0xFF
+		return 0
 	case 0xFF30 <= addr && addr <= 0xFF3F:
 		// TODO: Audio - Wave pattern RAM
 		return 0xFF
@@ -121,7 +127,16 @@ func (cons *Console) writeIO(addr uint16, value uint8) {
 		cons.Input.DirectionSelector = value&(1<<4) == 0
 		cons.Input.ActionSelector = value&(1<<5) == 0
 	case addr == 0xFF04:
-		cons.timer.Reset()
+		cons.timer.DIV = 0
+		return
+	case addr == 0xFF05:
+		cons.timer.TIMA = value
+		return
+	case addr == 0xFF06:
+		cons.timer.TMA = value
+		return
+	case addr == 0xFF07:
+		cons.timer.TAC = value
 		return
 	case addr == 0xFF0F:
 		cons.CPU.IF = value
@@ -369,8 +384,8 @@ func (cons *Console) Step() int {
 		}
 
 		cpuCycles := cons.CPU.ExecOne()
-		cons.PPU.Tick(cpuCycles)
 		cons.timer.Tick(cpuCycles)
+		cons.PPU.Tick(cpuCycles)
 
 		totCycles += cpuCycles
 		prevCycles = cpuCycles

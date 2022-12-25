@@ -1,35 +1,60 @@
 package gbc
 
-const TIMER_INC_FREQ int = 16384
+const DIV_THRESHOLD int = 256
 
 type Timer struct {
-	GBC                 *Console
-	DIV, TIMA, TMA, TAC uint8
+	GBC            *Console
+	DIV            uint16
+	TIMA, TMA, TAC uint8
 
-	cpuCyclesCount uint64
-	freq           int
+	divCounter, timaCounter int
 }
 
 func MakeTimer(c *Console) *Timer {
 	t := &Timer{
-		GBC:            c,
-		freq:           TIMER_INC_FREQ,
-		cpuCyclesCount: 0,
+		GBC: c,
 	}
 	return t
 }
 
-func (t *Timer) Tick(cycles int) {
-	t.cpuCyclesCount += uint64(cycles)
-
-	t.DIV = uint8(t.cpuCyclesCount * uint64(t.freq) / uint64(t.GBC.CPUFreq))
-	if t.cpuCyclesCount > 256*uint64(t.GBC.CPUFreq)/uint64(t.freq) {
-		// Maximum count value
-		t.cpuCyclesCount %= 256 * uint64(t.GBC.CPUFreq) / uint64(t.freq)
+func (t *Timer) updateDiv(cycles int) {
+	t.divCounter += cycles * 4
+	for t.divCounter >= DIV_THRESHOLD {
+		t.divCounter -= DIV_THRESHOLD
+		t.DIV += 1
 	}
 }
 
-func (t *Timer) Reset() {
-	t.cpuCyclesCount = 0
-	t.DIV = 0
+func (t *Timer) updateTima(cycles int) {
+	if t.TAC&4 == 0 {
+		return
+	}
+	t.timaCounter += cycles * 4
+
+	threshold := 0
+	switch t.TAC & 3 {
+	case 0:
+		threshold = 1024
+	case 1:
+		threshold = 16
+	case 2:
+		threshold = 64
+	case 3:
+		threshold = 256
+	}
+
+	for t.timaCounter >= threshold {
+		t.timaCounter -= threshold
+		if t.TIMA == 0xFF {
+			t.TIMA = t.TMA
+			t.GBC.CPU.SetInterrupt(InterruptTimer.Mask)
+		} else {
+			t.TIMA += 1
+		}
+	}
+}
+
+func (t *Timer) Tick(cycles int) {
+	t.updateDiv(cycles)
+	t.updateTima(cycles)
 }

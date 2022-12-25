@@ -68,37 +68,45 @@ func (cpu *Z80Cpu) fetchOpcode() uint8 {
 	return opcode
 }
 
-func (cpu *Z80Cpu) handleInterrupts() {
+func (cpu *Z80Cpu) handleInterrupts() bool {
+	if cpu.IE&cpu.IF&0xF != 0 {
+		cpu.isHalted = false
+	}
+
 	if !cpu.interruptsEnabled {
-		return
+		return false
 	}
 
 	interruptValue := cpu.IE & cpu.IF
 	if interruptValue == 0 {
-		return
+		return false
 	}
 
 	cpu.isHalted = false
 	cpu.StackPush16(cpu.PC)
 	cpu.interruptsEnabled = false
 
-	interruptWasHandled := false
+	interruptWasFound := false
 	for _, interrupt := range cpu.Interrupts {
 		if interruptValue&interrupt.Mask != 0 {
 			cpu.IF &= ^interrupt.Mask
 			cpu.PC = interrupt.Addr
-			interruptWasHandled = true
+			interruptWasFound = true
 			break
 		}
 	}
 
-	if !interruptWasHandled {
+	if !interruptWasFound {
 		panic("Invalid interrupt")
 	}
+	return true
 }
 
 func (cpu *Z80Cpu) ExecOne() int {
-	cpu.handleInterrupts()
+	inInterrupt := cpu.handleInterrupts()
+	if inInterrupt {
+		return 5
+	}
 
 	if cpu.isHalted {
 		return 1
