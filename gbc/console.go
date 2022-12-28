@@ -33,8 +33,10 @@ type Console struct {
 	HighRAM [0x80]byte
 	WorkRAM [8][0x1000]byte
 
-	// In CGB Mode select the RAM bank @ 0xD000-0xDFFF
-	RamBank uint8
+	// CGB Registers and data
+	RamBank uint8 // RAM bank @ 0xD000-0xDFFF
+	DmaSrc  uint16
+	DmaDst  uint16
 
 	InBootROM bool
 	BootROM   []byte
@@ -99,15 +101,23 @@ func (cons *Console) readIO(addr uint16) uint8 {
 		return cons.PPU.OBP0
 	case addr == 0xFF49:
 		return cons.PPU.OBP1
+	case addr == 0xFF4A:
+		return cons.PPU.WY
+	case addr == 0xFF4B:
+		return cons.PPU.WX
+	case addr == 0xFF4F:
+		// CGB Only Register
+		return cons.PPU.VRAMBank
 	case addr == 0xFF50:
 		if cons.InBootROM {
 			return 0
 		}
 		return 1
-	case addr == 0xFF4A:
-		return cons.PPU.WY
-	case addr == 0xFF4B:
-		return cons.PPU.WX
+	case addr == 0xFF55:
+		// CGB Only Register
+		// FIXME: This should indicate whether the DMA transfer is happening.
+		//        Currently we do the transfer in one shot, so it returns always 0xFF
+		return 0xFF
 	case addr == 0xFF69:
 		// CGB Only Register
 		return cons.PPU.ReadCRamBg()
@@ -128,6 +138,18 @@ func (cons *Console) dmaTransfer(value uint8) {
 		to := uint16(0xFE00) + uint16(i)
 
 		cons.Write(to, cons.Read(from))
+	}
+}
+
+func (cons *Console) cgbDmaTransfer(value uint8) {
+	// FIXME: The transfer does not happen in one shot, but depending on the must
+	//        significant bit of "value" should be performed in different ways
+	src := cons.DmaSrc & 0xFFF0
+	dst := cons.DmaDst & 0xFFF0
+	len := uint16(value&0x7F)*16 + 1
+
+	for i := uint16(0); i < len; i++ {
+		cons.Write(dst+i, cons.Read(src+i))
 	}
 }
 
@@ -205,18 +227,46 @@ func (cons *Console) writeIO(addr uint16, value uint8) {
 	case addr == 0xFF49:
 		cons.PPU.OBP1 = value
 		return
-	case addr == 0xFF50:
-		if value == 1 {
-			cons.InBootROM = false
-		} else {
-			cons.InBootROM = true
-		}
-		return
 	case addr == 0xFF4A:
 		cons.PPU.WY = value
 		return
 	case addr == 0xFF4B:
 		cons.PPU.WX = value
+		return
+	case addr == 0xFF4F:
+		// CGB Only Register
+		if value&1 == 0 {
+			cons.PPU.VRAMBank = 0
+		} else {
+			cons.PPU.VRAMBank = 1
+		}
+		return
+	case addr == 0xFF50:
+		if value != 0 {
+			cons.InBootROM = false
+		} else {
+			cons.InBootROM = true
+		}
+		return
+	case addr == 0xFF51:
+		// CGB Only Register
+		cons.DmaSrc |= uint16(value) << 8
+		return
+	case addr == 0xFF52:
+		// CGB Only Register
+		cons.DmaSrc |= uint16(value)
+		return
+	case addr == 0xFF53:
+		// CGB Only Register
+		cons.DmaDst |= uint16(value) << 8
+		return
+	case addr == 0xFF54:
+		// CGB Only Register
+		cons.DmaDst |= uint16(value)
+		return
+	case addr == 0xFF55:
+		// CGB Only Register
+		cons.cgbDmaTransfer(value)
 		return
 	case addr == 0xFF68:
 		// CGB Only Register
@@ -270,6 +320,9 @@ func (cons *Console) Read(addr uint16) uint8 {
 		return cons.Read(addr - 0x2000)
 	case 0xFE00 <= addr && addr <= 0xFE9F:
 		return cons.PPU.ReadOam(addr - 0xFE00)
+	case 0xFEA0 <= addr && addr <= 0xFEFF:
+		// Unusable memory
+		return 0xFF
 	case 0xFF00 <= addr && addr <= 0xFF7F:
 		return cons.readIO(addr)
 	case 0xFF80 <= addr && addr <= 0xFFFE:
@@ -304,6 +357,9 @@ func (cons *Console) Write(addr uint16, value uint8) {
 		return
 	case 0xFE00 <= addr && addr <= 0xFE9F:
 		cons.PPU.WriteOam(addr-0xFE00, value)
+		return
+	case 0xFEA0 <= addr && addr <= 0xFEFF:
+		// Unusable memory
 		return
 	case 0xFF00 <= addr && addr <= 0xFF7F:
 		cons.writeIO(addr, value)
@@ -387,7 +443,7 @@ func MakeConsole(rom_filepath string, videoDriver VideoDriver) (*Console, error)
 		Cart:      cart,
 		Input:     &Joypad{},
 		RamBank:   1,
-		CGBMode:   true,
+		CGBMode:   false,
 		CPUFreq:   GBCPU_FREQ,
 		BootROM:   boot,
 		InBootROM: true,
@@ -412,12 +468,12 @@ func (cons *Console) Destroy() error {
 	return nil
 }
 
-var prevCycles int = 0
+var prevTicks int = 0
 
 func (cons *Console) Step() int {
 	prevFrame := cons.PPU.FrameCount
 
-	totCycles := 0
+	totTicks := 0
 	for cons.PPU.FrameCount == prevFrame {
 
 		if cons.PrintDebug {
@@ -425,20 +481,20 @@ func (cons *Console) Step() int {
 			_, disas_str := cons.CPU.Disas.DisassembleOneFromCPU(cons.CPU)
 
 			fmt.Fprintf(os.Stderr, "%s |CYC=%d PC=%04x SP=%04x A=%02x B=%02x C=%02x D=%02x E=%02x H=%02x L=%02x F=%02x IV=%02x PPUC=%04d LY=%02x LYC=%02x STAT=%02x LCDC=%02x SCX=%02x SCY=%02x WX=%02x WY=%02x MEM=%02x\n",
-				disas_str, prevCycles, cpu.PC, cpu.SP, cpu.A, cpu.B, cpu.C, cpu.D, cpu.E, cpu.H, cpu.L, cpu.PackFlags(), cpu.IE&cpu.IF, cons.PPU.CycleCount, cons.PPU.LY, cons.PPU.LYC, cons.PPU.STAT, cons.PPU.LCDC, cons.PPU.SCX, cons.PPU.SCY, cons.PPU.WX, cons.PPU.WY, cons.Read(cpu.SP))
+				disas_str, prevTicks, cpu.PC, cpu.SP, cpu.A, cpu.B, cpu.C, cpu.D, cpu.E, cpu.H, cpu.L, cpu.PackFlags(), cpu.IE&cpu.IF, cons.PPU.CycleCount, cons.PPU.LY, cons.PPU.LYC, cons.PPU.STAT, cons.PPU.LCDC, cons.PPU.SCX, cons.PPU.SCY, cons.PPU.WX, cons.PPU.WY, cons.Read(cpu.SP))
 		}
 
-		cpuCycles := cons.CPU.ExecOne()
-		cons.timer.Tick(cpuCycles)
-		cons.PPU.Tick(cpuCycles)
+		cpuTicks := cons.CPU.ExecOne()
+		cons.timer.Tick(cpuTicks)
+		cons.PPU.Tick(cpuTicks)
 
-		totCycles += cpuCycles
-		prevCycles = cpuCycles
+		totTicks += cpuTicks
+		prevTicks = cpuTicks
 	}
 
-	return totCycles
+	return totTicks
 }
 
-func (cons *Console) GetMs(cycles int) int {
-	return cycles * 4 * 1000 / cons.CPUFreq
+func (cons *Console) GetMs(ticks int) int {
+	return ticks * 4 * 1000 / cons.CPUFreq
 }

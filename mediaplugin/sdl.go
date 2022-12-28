@@ -163,10 +163,10 @@ func (pl *SDLPlugin) Run(console *gbc.Console) error {
 			}
 		}
 
-		cycles := console.Step()
+		ticks := console.Step()
 		elapsed := time.Since(start)
-		if int(elapsed.Milliseconds()) < console.GetMs(cycles) {
-			sdl.Delay(uint32(console.GetMs(cycles) - int(elapsed.Milliseconds())))
+		if int(elapsed.Milliseconds()) < console.GetMs(ticks) {
+			sdl.Delay(uint32(console.GetMs(ticks) - int(elapsed.Milliseconds())))
 		} else {
 			fmt.Println("Emulation is too slow")
 		}

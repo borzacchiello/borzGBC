@@ -129,16 +129,16 @@ func (cpu *Z80Cpu) ExecOne() int {
 	handler := handlers[opcode]
 	handler(cpu)
 
-	cycles := 0
+	ticks := 0
 	if isCBOpcode {
-		cycles += int(cycles_cb[cb_opcode])
+		ticks += int(ticks_cb[cb_opcode])
 	} else if cpu.branchWasTaken {
-		cycles += int(cycles_branched[opcode])
+		ticks += int(ticks_branched[opcode])
 	} else {
-		cycles += int(cycles_opcode[opcode])
+		ticks += int(ticks_opcode[opcode])
 	}
 
-	return cycles
+	return ticks
 }
 
 func (cpu *Z80Cpu) PackFlags() uint8 {
@@ -1341,7 +1341,7 @@ var cb_handlers = [256]func(*Z80Cpu){
 	func(cpu *Z80Cpu) { handler_set_R(cpu, 7, &cpu.A) },                                   // FF
 }
 
-var cycles_opcode = []uint8{
+var ticks_opcode = []uint8{
 	1, 3, 2, 2, 1, 1, 2, 1, 5, 2, 2, 2, 1, 1, 2, 1,
 	1, 3, 2, 2, 1, 1, 2, 1, 3, 2, 2, 2, 1, 1, 2, 1,
 	2, 3, 2, 2, 1, 1, 2, 1, 2, 2, 2, 2, 1, 1, 2, 1,
@@ -1360,7 +1360,7 @@ var cycles_opcode = []uint8{
 	3, 3, 2, 1, 0, 4, 2, 4, 3, 2, 4, 1, 0, 0, 2, 4,
 }
 
-var cycles_branched = []uint8{
+var ticks_branched = []uint8{
 	1, 3, 2, 2, 1, 1, 2, 1, 5, 2, 2, 2, 1, 1, 2, 1,
 	1, 3, 2, 2, 1, 1, 2, 1, 3, 2, 2, 2, 1, 1, 2, 1,
 	3, 3, 2, 2, 1, 1, 2, 1, 3, 2, 2, 2, 1, 1, 2, 1,
@@ -1379,7 +1379,7 @@ var cycles_branched = []uint8{
 	3, 3, 2, 1, 0, 4, 2, 4, 3, 2, 4, 1, 0, 0, 2, 4,
 }
 
-var cycles_cb = []uint8{
+var ticks_cb = []uint8{
 	2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2,
 	2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2,
 	2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2,

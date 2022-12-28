@@ -17,19 +17,19 @@ func MakeTimer(c *Console) *Timer {
 	return t
 }
 
-func (t *Timer) updateDiv(cycles int) {
-	t.divCounter += cycles * 4
+func (t *Timer) updateDiv(ticks int) {
+	t.divCounter += ticks * 4
 	for t.divCounter >= DIV_THRESHOLD {
 		t.divCounter -= DIV_THRESHOLD
 		t.DIV += 1
 	}
 }
 
-func (t *Timer) updateTima(cycles int) {
+func (t *Timer) updateTima(ticks int) {
 	if t.TAC&4 == 0 {
 		return
 	}
-	t.timaCounter += cycles * 4
+	t.timaCounter += ticks * 4
 
 	threshold := 0
 	switch t.TAC & 3 {
@@ -54,7 +54,7 @@ func (t *Timer) updateTima(cycles int) {
 	}
 }
 
-func (t *Timer) Tick(cycles int) {
-	t.updateDiv(cycles)
-	t.updateTima(cycles)
+func (t *Timer) Tick(ticks int) {
+	t.updateDiv(ticks)
+	t.updateTima(ticks)
 }

@@ -59,11 +59,11 @@ type Sprite struct {
 	options uint8
 }
 
-func (sprite *Sprite) gbcPaletteNumber() uint8 {
+func (sprite *Sprite) cgbPaletteNumber() uint8 {
 	return sprite.options & 3
 }
 
-func (sprite *Sprite) gbcVramBank() uint8 {
+func (sprite *Sprite) cgbVramBank() uint8 {
 	return (sprite.options >> 3) & 1
 }
 
@@ -87,9 +87,9 @@ type Ppu struct {
 	Driver VideoDriver
 	GBC    *Console
 
-	VRAM_1 [0x2000]uint8
-	VRAM_2 [0x2000]uint8
-	OamRAM [0xA0]uint8
+	VRAM     [2][0x2000]uint8
+	VRAMBank uint8
+	OamRAM   [0xA0]uint8
 
 	// CGB Palette RAM
 	CRAMBg            [0x40]uint8
@@ -100,7 +100,7 @@ type Ppu struct {
 	CRAMSpriteAutoInc bool
 
 	// VRAM tiles and sprites rearranged here
-	tiles   [512]Tile
+	tiles   [1024]Tile
 	sprites [40]Sprite
 
 	STAT, LCDC      uint8
@@ -192,17 +192,15 @@ func (ppu *Ppu) setPixel(x, y int, c uint8, palette *Palette) {
 }
 
 func (ppu *Ppu) ReadVRam(addr uint16) uint8 {
-	if addr >= 0x2000 {
-		return ppu.VRAM_2[addr-0x2000]
-	}
-	return ppu.VRAM_1[addr]
+	return ppu.VRAM[ppu.VRAMBank][addr]
 }
 
 func (ppu *Ppu) WriteVRam(addr uint16, value uint8) {
-	if addr > 0x2000 {
-		ppu.VRAM_2[addr-0x2000] = value
-	} else {
-		ppu.VRAM_1[addr] = value
+	ppu.VRAM[ppu.VRAMBank][addr] = value
+
+	if addr >= 0x1800 {
+		// TileMap, we do not care
+		return
 	}
 
 	// Update tiles metadata
@@ -210,6 +208,9 @@ func (ppu *Ppu) WriteVRam(addr uint16, value uint8) {
 	addr &= 0xfffe
 	tile := (addr >> 4) & 0x1ff
 	y := (addr >> 1) & 7
+	if ppu.VRAMBank == 1 {
+		// FIXME: What happens if I am registering a tile in the second VRAM Bank?
+	}
 
 	for x := uint8(0); x < 8; x++ {
 		bitIndex := uint8(1 << (7 - x))
@@ -330,6 +331,41 @@ func getPixelColor(p1, p2 uint8, tile_pixel int) uint8 {
 	return ((p1>>(7-tile_pixel))&1)<<1 | (p2>>(7-tile_pixel))&1
 }
 
+func getRGBFromCRAM(cram []uint8, off int) uint32 {
+	val := (int(cram[off+1]) << 8) | int(cram[off])
+
+	r := (val & 0x1F) * 255 / 31
+	g := ((val >> 5) & 0x1F) * 255 / 31
+	b := ((val >> 10) & 0x1F) * 255 / 31
+	return uint32((r << 24) | (g << 16) | (b << 8) | 0xFF)
+}
+
+func (ppu *Ppu) getCgbBgPalette(tileAddr uint16) Palette {
+	attrOff := tileAddr - 0x8000
+	attr := ppu.VRAM[1][attrOff]
+	paletteNum := attr & 3
+	paletteOff := int(paletteNum) * 8
+	palette := Palette{[4]uint32{
+		getRGBFromCRAM(ppu.CRAMBg[:], paletteOff),
+		getRGBFromCRAM(ppu.CRAMBg[:], paletteOff+2),
+		getRGBFromCRAM(ppu.CRAMBg[:], paletteOff+4),
+		getRGBFromCRAM(ppu.CRAMBg[:], paletteOff+6),
+	}}
+	return palette
+}
+
+func (ppu *Ppu) getCgbSpritePalette(sprite *Sprite) Palette {
+	paletteNum := sprite.cgbPaletteNumber()
+	paletteOff := int(paletteNum) * 8
+	palette := Palette{[4]uint32{
+		getRGBFromCRAM(ppu.CRAMSprite[:], paletteOff),
+		getRGBFromCRAM(ppu.CRAMSprite[:], paletteOff+2),
+		getRGBFromCRAM(ppu.CRAMSprite[:], paletteOff+4),
+		getRGBFromCRAM(ppu.CRAMSprite[:], paletteOff+6),
+	}}
+	return palette
+}
+
 func (ppu *Ppu) drawBgLine() {
 	addr := TILE_MAP_ZERO_ADDRESS
 	if ppu.BgTileMapDisplay() {
@@ -355,7 +391,7 @@ func (ppu *Ppu) drawBgLine() {
 			tileAddr = startRowAddr + tileAddr%endRowAddr
 		}
 
-		tile := int(ppu.GBC.Read(tileAddr))
+		tile := int(ppu.VRAM[0][tileAddr-0x8000])
 		if !useTileSetZero && tile < 128 {
 			tile += 256
 		}
@@ -366,6 +402,9 @@ func (ppu *Ppu) drawBgLine() {
 			}
 
 			color := ppu.tiles[tile].Pixels[y][x]
+			if ppu.GBC.CGBMode {
+				palette = ppu.getCgbBgPalette(tileAddr)
+			}
 			ppu.setPixel(screen_x, screen_y, color, &palette)
 			screen_x++
 		}
@@ -393,7 +432,7 @@ func (ppu *Ppu) drawWindowLine() {
 	screen_y := int(ppu.LY)
 
 	for tileAddr := addr; tileAddr < addr+20; tileAddr++ {
-		tile := int(ppu.GBC.Read(tileAddr))
+		tile := int(ppu.VRAM[0][tileAddr-0x8000])
 		if !useTileSetZero && tile < 128 {
 			tile += 256
 		}
@@ -404,6 +443,9 @@ func (ppu *Ppu) drawWindowLine() {
 			}
 
 			color := ppu.tiles[tile].Pixels[y][x]
+			if ppu.GBC.CGBMode {
+				palette = ppu.getCgbBgPalette(tileAddr)
+			}
 			ppu.setPixel(screen_x, screen_y, color, &palette)
 			screen_x++
 		}
@@ -448,9 +490,9 @@ func (ppu *Ppu) drawSprites() {
 		screen_y := int(ppu.LY)
 
 		for x := 0; x < 8; x++ {
-			tileNum := sprite.tile
+			tileNum := int(sprite.tile)
 			if ppu.SpriteSize() {
-				tileNum &= 0xFE
+				tileNum &= 0xFFFFFFFE
 			}
 
 			screen_x = sprite.x + x
@@ -478,6 +520,9 @@ func (ppu *Ppu) drawSprites() {
 				continue
 			}
 			if ppu.screen[screen_x][screen_y] == 0 || sprite.renderPriority() == 0 {
+				if ppu.GBC.CGBMode {
+					palette = ppu.getCgbSpritePalette(sprite)
+				}
 				ppu.setPixel(screen_x, screen_y, color, &palette)
 			}
 		}
@@ -510,8 +555,8 @@ func (ppu *Ppu) checkCoincidenceLY_LYC() {
 	}
 }
 
-func (ppu *Ppu) Tick(cycles int) {
-	ppu.CycleCount += cycles * 4
+func (ppu *Ppu) Tick(ticks int) {
+	ppu.CycleCount += ticks * 4
 
 	if !ppu.DisplayEnabled() {
 		if ppu.CycleCount >= 70224 {
