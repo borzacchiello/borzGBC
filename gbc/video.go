@@ -91,6 +91,14 @@ type Ppu struct {
 	VRAM_2 [0x2000]uint8
 	OamRAM [0xA0]uint8
 
+	// CGB Palette RAM
+	CRAMBg            [0x40]uint8
+	CRAMBgAddr        uint8
+	CRAMBgAutoInc     bool
+	CRAMSprite        [0x40]uint8
+	CRAMObjAddr       uint8
+	CRAMSpriteAutoInc bool
+
 	// VRAM tiles and sprites rearranged here
 	tiles   [512]Tile
 	sprites [40]Sprite
@@ -237,6 +245,38 @@ func (ppu *Ppu) WriteOam(addr uint16, value uint8) {
 	case 3:
 		sprite.Ready = true
 		sprite.options = value
+	}
+}
+
+func (ppu *Ppu) SetCRamBgAddr(addr uint8) {
+	ppu.CRAMBgAutoInc = (addr>>7)&1 != 0
+	ppu.CRAMBgAddr = addr & 0x3f
+}
+
+func (ppu *Ppu) SetCRAMObjAddr(addr uint8) {
+	ppu.CRAMSpriteAutoInc = (addr>>7)&1 != 0
+	ppu.CRAMObjAddr = addr & 0x3f
+}
+
+func (ppu *Ppu) ReadCRamBg() uint8 {
+	return ppu.CRAMBg[ppu.CRAMBgAddr]
+}
+
+func (ppu *Ppu) WriteCRamBg(value uint8) {
+	ppu.CRAMBg[ppu.CRAMBgAddr] = value
+	if ppu.CRAMBgAutoInc {
+		ppu.CRAMBgAddr += 1
+	}
+}
+
+func (ppu *Ppu) ReadCRamObj() uint8 {
+	return ppu.CRAMSprite[ppu.CRAMObjAddr]
+}
+
+func (ppu *Ppu) WriteCRamObj(value uint8) {
+	ppu.CRAMSprite[ppu.CRAMObjAddr] = value
+	if ppu.CRAMSpriteAutoInc {
+		ppu.CRAMObjAddr += 1
 	}
 }
 
@@ -391,7 +431,7 @@ func (ppu *Ppu) drawSprites() {
 		}
 		renderedSprites++
 
-		if (sprite.x < -7) || (sprite.x >= 160) {
+		if (sprite.x < -7) || (sprite.x >= SCREEN_WIDTH) {
 			continue
 		}
 
@@ -471,10 +511,13 @@ func (ppu *Ppu) checkCoincidenceLY_LYC() {
 }
 
 func (ppu *Ppu) Tick(cycles int) {
-	ppu.CycleCount += cycles
+	ppu.CycleCount += cycles * 4
 
 	if !ppu.DisplayEnabled() {
-		ppu.CycleCount = 0
+		if ppu.CycleCount >= 70224 {
+			ppu.CycleCount %= 70224
+		}
+
 		ppu.LY = 0
 		ppu.setMode(ACCESS_OAM)
 		return

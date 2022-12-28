@@ -26,11 +26,15 @@ type Console struct {
 	timer *Timer
 	Input *Joypad
 
+	CGBMode bool
 	CPUFreq int
 
 	// Memory
 	HighRAM [0x80]byte
-	WorkRAM [0x8000]byte
+	WorkRAM [8][0x1000]byte
+
+	// In CGB Mode select the RAM bank @ 0xD000-0xDFFF
+	RamBank uint8
 
 	InBootROM bool
 	BootROM   []byte
@@ -104,6 +108,12 @@ func (cons *Console) readIO(addr uint16) uint8 {
 		return cons.PPU.WY
 	case addr == 0xFF4B:
 		return cons.PPU.WX
+	case addr == 0xFF69:
+		// CGB Only Register
+		return cons.PPU.ReadCRamBg()
+	case addr == 0xFF6B:
+		// CGB Only Register
+		return cons.PPU.ReadCRamObj()
 	default:
 		fmt.Printf("Unhandled IO Read @ %04x\n", addr)
 	}
@@ -208,6 +218,29 @@ func (cons *Console) writeIO(addr uint16, value uint8) {
 	case addr == 0xFF4B:
 		cons.PPU.WX = value
 		return
+	case addr == 0xFF68:
+		// CGB Only Register
+		cons.PPU.SetCRamBgAddr(value)
+		return
+	case addr == 0xFF69:
+		// CGB Only Register
+		cons.PPU.WriteCRamBg(value)
+		return
+	case addr == 0xFF6A:
+		// CGB Only Register
+		cons.PPU.SetCRAMObjAddr(value)
+		return
+	case addr == 0xFF6B:
+		// CGB Only Register
+		cons.PPU.WriteCRamObj(value)
+		return
+	case addr == 0xFF70:
+		// CGB Only Register
+		cons.RamBank = value & 7
+		if cons.RamBank == 0 {
+			cons.RamBank = 1
+		}
+		return
 	default:
 		fmt.Printf("Unhandled IO Write @ %04x <- %02x\n", addr, value)
 	}
@@ -216,16 +249,23 @@ func (cons *Console) writeIO(addr uint16, value uint8) {
 func (cons *Console) Read(addr uint16) uint8 {
 	switch {
 	case 0x0000 <= addr && addr <= 0x7FFF:
-		if cons.InBootROM && int(addr) < len(cons.BootROM) {
-			return cons.BootROM[addr]
+		if cons.InBootROM {
+			if addr < 0x100 {
+				return cons.BootROM[addr]
+			}
+			if 0x200 <= addr && addr <= 0x8FF && int(addr) < len(cons.BootROM) {
+				return cons.BootROM[addr]
+			}
 		}
 		return cons.Cart.Map.MapperRead(addr)
 	case 0x8000 <= addr && addr <= 0x9FFF:
 		return cons.PPU.ReadVRam(addr - 0x8000)
 	case 0xA000 <= addr && addr <= 0xBFFF:
 		return cons.Cart.Map.MapperRead(addr)
-	case 0xC000 <= addr && addr <= 0xDFFF:
-		return cons.WorkRAM[addr-0xC000]
+	case 0xC000 <= addr && addr <= 0xCFFF:
+		return cons.WorkRAM[0][addr-0xC000]
+	case 0xD000 <= addr && addr <= 0xDFFF:
+		return cons.WorkRAM[cons.RamBank][addr-0xD000]
 	case 0xE000 <= addr && addr <= 0xFDFF:
 		return cons.Read(addr - 0x2000)
 	case 0xFE00 <= addr && addr <= 0xFE9F:
@@ -253,8 +293,11 @@ func (cons *Console) Write(addr uint16, value uint8) {
 	case 0xA000 <= addr && addr <= 0xBFFF:
 		cons.Cart.Map.MapperWrite(addr, value)
 		return
-	case 0xC000 <= addr && addr <= 0xDFFF:
-		cons.WorkRAM[addr-0xC000] = value
+	case 0xC000 <= addr && addr <= 0xCFFF:
+		cons.WorkRAM[0][addr-0xC000] = value
+		return
+	case 0xD000 <= addr && addr <= 0xDFFF:
+		cons.WorkRAM[cons.RamBank][addr-0xD000] = value
 		return
 	case 0xE000 <= addr && addr <= 0xFDFF:
 		cons.Write(addr-0x2000, value)
@@ -343,6 +386,8 @@ func MakeConsole(rom_filepath string, videoDriver VideoDriver) (*Console, error)
 	res := &Console{
 		Cart:      cart,
 		Input:     &Joypad{},
+		RamBank:   1,
+		CGBMode:   true,
 		CPUFreq:   GBCPU_FREQ,
 		BootROM:   boot,
 		InBootROM: true,
@@ -395,5 +440,5 @@ func (cons *Console) Step() int {
 }
 
 func (cons *Console) GetMs(cycles int) int {
-	return cycles * 1000 / cons.CPUFreq
+	return cycles * 4 * 1000 / cons.CPUFreq
 }
