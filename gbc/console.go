@@ -4,6 +4,7 @@ import (
 	"borzGBC/z80cpu"
 	"fmt"
 	"os"
+	"path/filepath"
 )
 
 var InterruptVBlank z80cpu.Z80Interrupt = z80cpu.Z80Interrupt{
@@ -392,12 +393,25 @@ func (cons *Console) Write(addr uint16, value uint8) {
 	}
 }
 
-func loadBoot(cart *Cart) ([]byte, error) {
-	// FIXME: load the correct ROM and parametrize BootROMs location
-	if cart.header.CgbFlag != 0 {
-		return os.ReadFile("BootROMs/cgb.bin")
+func getExecutablePath() (string, error) {
+	ex, err := os.Executable()
+	if err != nil {
+		return "", err
 	}
-	return os.ReadFile("BootROMs/dmg.bin")
+	exPath := filepath.Dir(ex)
+	return exPath, nil
+}
+
+func loadBoot(cart *Cart) ([]byte, error) {
+	executableDir, err := getExecutablePath()
+	if err != nil {
+		return nil, err
+	}
+
+	if cart.header.CgbFlag != 0 {
+		return os.ReadFile(fmt.Sprintf("%s/bootRoms/cgb.bin", executableDir))
+	}
+	return os.ReadFile(fmt.Sprintf("%s/bootRoms/dmg.bin", executableDir))
 }
 
 func loadSav(cart *Cart) error {
