@@ -1,12 +1,33 @@
 package gbc
 
-type Joypad struct {
+type JoypadState struct {
 	A, B, UP, DOWN, LEFT, RIGHT, START, SELECT bool
 	ActionSelector                             bool
 	DirectionSelector                          bool
 }
 
-func (j *Joypad) PackButtons() uint8 {
+type Joypad struct {
+	BackState  JoypadState
+	FrontState JoypadState
+
+	cons  *Console
+	ticks int
+}
+
+func MakeJoypad(cons *Console) *Joypad {
+	return &Joypad{cons: cons, ticks: 0}
+}
+
+func (j *Joypad) Tick(ticks int) {
+	j.ticks += ticks
+	if j.ticks >= 16384 {
+		j.ticks -= 16384
+		j.FrontState = j.BackState
+		j.cons.CPU.SetInterrupt(InterruptJoypad.Mask)
+	}
+}
+
+func (j *JoypadState) PackButtons() uint8 {
 	res := uint8(0x3f)
 
 	if j.DirectionSelector {

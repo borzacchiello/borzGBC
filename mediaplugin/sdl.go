@@ -144,21 +144,21 @@ func (pl *SDLPlugin) Run(console *gbc.Console) error {
 
 				// GB Keys
 				case sdl.K_z:
-					console.Input.A = t.State == sdl.PRESSED
+					console.Input.BackState.A = t.State == sdl.PRESSED
 				case sdl.K_x:
-					console.Input.B = t.State == sdl.PRESSED
+					console.Input.BackState.B = t.State == sdl.PRESSED
 				case sdl.K_RETURN:
-					console.Input.START = t.State == sdl.PRESSED
+					console.Input.BackState.START = t.State == sdl.PRESSED
 				case sdl.K_BACKSPACE:
-					console.Input.SELECT = t.State == sdl.PRESSED
+					console.Input.BackState.SELECT = t.State == sdl.PRESSED
 				case sdl.K_UP:
-					console.Input.UP = t.State == sdl.PRESSED
+					console.Input.BackState.UP = t.State == sdl.PRESSED
 				case sdl.K_DOWN:
-					console.Input.DOWN = t.State == sdl.PRESSED
+					console.Input.BackState.DOWN = t.State == sdl.PRESSED
 				case sdl.K_LEFT:
-					console.Input.LEFT = t.State == sdl.PRESSED
+					console.Input.BackState.LEFT = t.State == sdl.PRESSED
 				case sdl.K_RIGHT:
-					console.Input.RIGHT = t.State == sdl.PRESSED
+					console.Input.BackState.RIGHT = t.State == sdl.PRESSED
 				}
 			}
 		}

@@ -247,7 +247,7 @@ func (m *MBC5Mapper) MapperRead(addr uint16) uint8 {
 		bank := int(m.romBank)
 		return m.cart.ROMBanks[bank][off]
 	case 0xA000 <= addr && addr <= 0xBFFF:
-		if len(m.cart.RAMBanks) == 0 {
+		if !m.ramEnabled || len(m.cart.RAMBanks) == 0 {
 			return 0x00
 		}
 		off := addr & 0x1FFF

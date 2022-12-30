@@ -51,7 +51,7 @@ type Console struct {
 func (cons *Console) readIO(addr uint16) uint8 {
 	switch {
 	case addr == 0xFF00:
-		return cons.Input.PackButtons()
+		return cons.Input.FrontState.PackButtons()
 	case addr == 0xFF04:
 		return uint8(cons.timer.DIV >> 8)
 	case addr == 0xFF05:
@@ -131,6 +131,9 @@ func (cons *Console) readIO(addr uint16) uint8 {
 	case addr == 0xFF6B:
 		// CGB Only Register
 		return cons.PPU.ReadCRamObj()
+	case addr == 0xFF70:
+		// CGB Only Register
+		return cons.PPU.VRAMBank
 	default:
 		if cons.Verbose {
 			fmt.Printf("Unhandled IO Read @ %04x\n", addr)
@@ -165,8 +168,8 @@ func (cons *Console) cgbDmaTransfer(value uint8) {
 func (cons *Console) writeIO(addr uint16, value uint8) {
 	switch {
 	case addr == 0xFF00:
-		cons.Input.DirectionSelector = value&(1<<4) == 0
-		cons.Input.ActionSelector = value&(1<<5) == 0
+		cons.Input.FrontState.DirectionSelector = value&(1<<4) == 0
+		cons.Input.FrontState.ActionSelector = value&(1<<5) == 0
 	case addr == 0xFF04:
 		cons.timer.DIV = 0
 		return
@@ -481,7 +484,6 @@ func MakeConsole(rom_filepath string, videoDriver VideoDriver) (*Console, error)
 
 	res := &Console{
 		Cart:      cart,
-		Input:     &Joypad{},
 		RamBank:   1,
 		CGBMode:   cart.header.CgbFlag != 0,
 		CPUFreq:   GBCPU_FREQ,
@@ -491,6 +493,7 @@ func MakeConsole(rom_filepath string, videoDriver VideoDriver) (*Console, error)
 	}
 	res.PPU = MakePpu(res, videoDriver)
 	res.CPU = z80cpu.MakeZ80Cpu(res)
+	res.Input = MakeJoypad(res)
 	res.timer = MakeTimer(res)
 
 	res.CPU.RegisterInterrupt(InterruptVBlank)
@@ -528,6 +531,7 @@ func (cons *Console) Step() int {
 		cpuTicks := cons.CPU.ExecOne()
 		cons.timer.Tick(cpuTicks)
 		cons.PPU.Tick(cpuTicks)
+		cons.Input.Tick(cpuTicks)
 
 		totTicks += cpuTicks
 		prevTicks = cpuTicks
