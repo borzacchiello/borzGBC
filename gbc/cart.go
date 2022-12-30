@@ -60,16 +60,8 @@ func getMapper(cart *Cart) (Mapper, error) {
 		return nil, CartError("Unsupported Mapper MMM01+RAM")
 	case 0x0D: // MMM01+RAM+BATTERY
 		return nil, CartError("Unsupported Mapper MMM01+RAM+BATTERY")
-	case 0x0F: // MBC3+TIMER+BATTERY
-		return nil, CartError("Unsupported Mapper MBC3+TIMER+BATTERY")
-	case 0x10: // MBC3+TIMER+RAM+BATTERY 2
-		return nil, CartError("Unsupported Mapper MBC3+TIMER+RAM+BATTERY 2")
-	case 0x11: // MBC3
-		return nil, CartError("Unsupported Mapper MBC3")
-	case 0x12: // MBC3+RAM 2
-		return nil, CartError("Unsupported Mapper MBC3+RAM 2")
-	case 0x13: // MBC3+RAM+BATTERY 2
-		return nil, CartError("Unsupported Mapper MBC3+RAM+BATTERY 2")
+	case 0x0F, 0x10, 0x11, 0x12, 0x13: // MBC3
+		return MakeMBC3Mapper(cart), nil
 	case 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E: // MBC5
 		return MakeMBC5Mapper(cart), nil
 	case 0x20: // MBC6
