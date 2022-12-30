@@ -46,6 +46,8 @@ type VideoDriver interface {
 type PixelInfo struct {
 	isNotTransparent bool
 	bgAttrBitNotSet  bool
+	spritePixel      bool
+	spriteX          int
 }
 
 type Palette struct {
@@ -113,6 +115,7 @@ type Ppu struct {
 	LY, LYC, WY, WX uint8
 	BGP             uint8
 	OBP0, OBP1      uint8
+	WindowScanline  uint8
 
 	// A clone of the screen
 	screen [SCREEN_WIDTH][SCREEN_HEIGHT]PixelInfo
@@ -450,7 +453,7 @@ func (ppu *Ppu) drawWindowLine() {
 
 	palette := ppu.loadPalette(ppu.BGP)
 	useTileSetZero := ppu.BgWindowTileData()
-	addr += ((uint16(ppu.LY) - uint16(ppu.WY)) / 8) * 32
+	addr += ((uint16(ppu.WindowScanline) - uint16(ppu.WY)) / 8) * 32
 
 	y := (uint16(ppu.LY) - uint16(ppu.WY)) & 7
 
@@ -499,7 +502,7 @@ func (ppu *Ppu) drawSprites() {
 	}
 
 	renderedSprites := 0
-	for i := 39; i >= 0; i-- {
+	for i := 0; i < 40; i++ {
 		sprite := &ppu.sprites[i]
 		if !sprite.Ready {
 			continue
@@ -563,13 +566,15 @@ func (ppu *Ppu) drawSprites() {
 				continue
 			}
 			pixelInfo := ppu.screen[screen_x][screen_y]
-			// fmt.Printf(" X=%d, Y=%d, BgEnabled: %v, OAMBit: %v, BGBit: %v, Transparent: %v\n",
-			// 	screen_x, screen_y, ppu.BgEnabled(), sprite.renderPriority(), !pixelInfo.bgAttrBitNotSet, !pixelInfo.isNotTransparent)
-			if !pixelInfo.isNotTransparent || (!sprite.renderPriority() && pixelInfo.bgAttrBitNotSet) {
-				if ppu.GBC.CGBMode {
-					palette = ppu.getCgbSpritePalette(sprite)
+			if !ppu.GBC.CGBMode {
+				if (!pixelInfo.spritePixel && !pixelInfo.isNotTransparent) || (pixelInfo.spritePixel && pixelInfo.spriteX > sprite.x) || (!pixelInfo.spritePixel && !sprite.renderPriority()) {
+					ppu.setPixel(screen_x, screen_y, color, PixelInfo{spritePixel: true, spriteX: sprite.x}, &palette)
 				}
-				ppu.setPixel(screen_x, screen_y, color, PixelInfo{}, &palette)
+			} else {
+				if !pixelInfo.isNotTransparent || (!sprite.renderPriority() && pixelInfo.bgAttrBitNotSet) {
+					palette = ppu.getCgbSpritePalette(sprite)
+					ppu.setPixel(screen_x, screen_y, color, PixelInfo{spritePixel: true, spriteX: sprite.x}, &palette)
+				}
 			}
 		}
 	}
@@ -610,6 +615,7 @@ func (ppu *Ppu) Tick(ticks int) {
 		}
 
 		ppu.LY = 0
+		ppu.WindowScanline = 0
 		ppu.setMode(ACCESS_OAM)
 		return
 	}
@@ -638,6 +644,10 @@ func (ppu *Ppu) Tick(ticks int) {
 			ppu.LY += 1
 			ppu.checkCoincidenceLY_LYC()
 
+			if ppu.WX <= 166 && ppu.WY <= 143 {
+				ppu.WindowScanline += 1
+			}
+
 			if ppu.LY == 144 {
 				ppu.setMode(VBLANK)
 
@@ -662,8 +672,13 @@ func (ppu *Ppu) Tick(ticks int) {
 			ppu.LY += 1
 			ppu.checkCoincidenceLY_LYC()
 
+			if ppu.WX <= 166 && ppu.WY <= 143 {
+				ppu.WindowScanline += 1
+			}
+
 			if ppu.LY == 153 {
 				ppu.LY = 0
+				ppu.WindowScanline = 0
 				ppu.setMode(ACCESS_OAM)
 				if ppu.oamInterrupt() {
 					ppu.GBC.CPU.SetInterrupt(InterruptLCDStat.Mask)

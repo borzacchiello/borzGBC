@@ -67,7 +67,5 @@ func TestBlargInstrTiming(t *testing.T) {
 }
 
 func TestDMGAcid2(t *testing.T) {
-	t.Skip("Broken")
-
 	runRomTest(t, "dmg-acid2", 1000)
 }

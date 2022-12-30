@@ -408,10 +408,18 @@ func loadBoot(cart *Cart) ([]byte, error) {
 		return nil, err
 	}
 
-	if cart.header.CgbFlag != 0 {
-		return os.ReadFile(fmt.Sprintf("%s/bootRoms/cgb.bin", executableDir))
+	bootromDir := "bootRoms"
+	if _, err := os.Stat("bootRoms"); os.IsNotExist(err) {
+		bootromDir = fmt.Sprintf("%s/bootRoms", executableDir)
+		if _, err := os.Stat(fmt.Sprintf("%s/bootRoms", executableDir)); os.IsNotExist(err) {
+			return nil, err
+		}
 	}
-	return os.ReadFile(fmt.Sprintf("%s/bootRoms/dmg.bin", executableDir))
+
+	if cart.header.CgbFlag != 0 {
+		return os.ReadFile(fmt.Sprintf("%s/cgb.bin", bootromDir))
+	}
+	return os.ReadFile(fmt.Sprintf("%s/dmg.bin", bootromDir))
 }
 
 func loadSav(cart *Cart) error {
