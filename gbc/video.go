@@ -406,11 +406,19 @@ func (ppu *Ppu) drawBgLine() {
 			tileAddr = startRowAddr + tileAddr%endRowAddr
 		}
 
+		flipH := false
+		flipV := false
 		bank := 0
 		if ppu.GBC.CGBMode {
 			tileAttr := ppu.getCgbTileAttribute(tileAddr)
 			if (tileAttr>>3)&1 != 0 {
 				bank = 1
+			}
+			if (tileAttr>>5)&1 != 0 {
+				flipH = true
+			}
+			if (tileAttr>>6)&1 != 0 {
+				flipV = true
 			}
 			palette = ppu.getCgbBgPalette(tileAttr)
 		}
@@ -428,7 +436,16 @@ func (ppu *Ppu) drawBgLine() {
 				break
 			}
 
-			color := ppu.tiles[tile].Pixels[y][x]
+			tileX := x
+			tileY := y
+			if flipH {
+				tileX = 7 - tileX
+			}
+			if flipV {
+				tileY = 7 - tileY
+			}
+
+			color := ppu.tiles[tile].Pixels[tileY][tileX]
 			pixelInfo := PixelInfo{isNotTransparent: color != 0}
 			if ppu.GBC.CGBMode {
 				tileAttr := ppu.getCgbTileAttribute(tileAddr)
@@ -461,12 +478,21 @@ func (ppu *Ppu) drawWindowLine() {
 	screen_y := int(ppu.LY)
 
 	for tileAddr := addr; tileAddr < addr+20; tileAddr++ {
+		flipH := false
+		flipV := false
 		bank := 0
 		if ppu.GBC.CGBMode {
 			tileAttr := ppu.getCgbTileAttribute(tileAddr)
 			if (tileAttr>>3)&1 != 0 {
 				bank = 1
 			}
+			if (tileAttr>>5)&1 != 0 {
+				flipH = true
+			}
+			if (tileAttr>>6)&1 != 0 {
+				flipV = true
+			}
+			palette = ppu.getCgbBgPalette(tileAttr)
 		}
 
 		tile := int(ppu.VRAM[0][tileAddr-0x8000])
@@ -482,12 +508,20 @@ func (ppu *Ppu) drawWindowLine() {
 				continue
 			}
 
-			color := ppu.tiles[tile].Pixels[y][x]
+			tileX := x
+			tileY := y
+			if flipH {
+				tileX = 7 - tileX
+			}
+			if flipV {
+				tileY = 7 - tileY
+			}
+
+			color := ppu.tiles[tile].Pixels[tileY][tileX]
 			pixelInfo := PixelInfo{isNotTransparent: color != 0}
 			if ppu.GBC.CGBMode {
 				tileAttr := ppu.getCgbTileAttribute(tileAddr)
 				pixelInfo.bgAttrBitNotSet = (tileAttr>>7)&1 == 0
-				palette = ppu.getCgbBgPalette(tileAttr)
 			}
 			ppu.setPixel(screen_x, screen_y, color, pixelInfo, &palette)
 			screen_x++
@@ -571,7 +605,7 @@ func (ppu *Ppu) drawSprites() {
 					ppu.setPixel(screen_x, screen_y, color, PixelInfo{spritePixel: true, spriteX: sprite.x}, &palette)
 				}
 			} else {
-				if !pixelInfo.isNotTransparent || (!sprite.renderPriority() && pixelInfo.bgAttrBitNotSet) {
+				if !pixelInfo.spritePixel && (!ppu.BgEnabled() || !pixelInfo.isNotTransparent || (!sprite.renderPriority() && pixelInfo.bgAttrBitNotSet)) {
 					palette = ppu.getCgbSpritePalette(sprite)
 					ppu.setPixel(screen_x, screen_y, color, PixelInfo{spritePixel: true, spriteX: sprite.x}, &palette)
 				}
@@ -585,7 +619,7 @@ func (ppu *Ppu) writeScanline() {
 		return
 	}
 
-	if ppu.BgEnabled() {
+	if ppu.GBC.CGBMode || ppu.BgEnabled() {
 		ppu.drawBgLine()
 	}
 
@@ -593,7 +627,7 @@ func (ppu *Ppu) writeScanline() {
 		ppu.drawWindowLine()
 	}
 
-	if ppu.GBC.CGBMode || ppu.SpritesEnabled() {
+	if ppu.SpritesEnabled() {
 		ppu.drawSprites()
 	}
 }

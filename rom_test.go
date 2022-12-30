@@ -5,6 +5,7 @@ import (
 	"image"
 	"image/png"
 	"os"
+	"strings"
 	"testing"
 
 	"borzGBC/gbc"
@@ -26,14 +27,21 @@ func imagesAreEqual(img1, img2 image.Image) bool {
 	return true
 }
 
-func runRomTest(t *testing.T, testName string, frames int) {
+func runRomTest(t *testing.T, test string, frames int) {
+	testName := strings.Split(test, ".")[0]
 	pl := mediaplugin.MkImageVideoDriver()
-	console, err := gbc.MakeConsole(fmt.Sprintf("testRoms/%s.gb", testName), pl)
+	console, err := gbc.MakeConsole(fmt.Sprintf("testRoms/%s", test), pl)
 	if err != nil {
 		t.Error("Unable to create console")
 		return
 	}
 	defer console.Destroy()
+
+	for console.PPU.FrameCount < frames {
+		console.Step()
+	}
+
+	pl.SaveScreen(fmt.Sprintf("testRoms/%s.result.png", testName))
 
 	f, err := os.Open(fmt.Sprintf("testRoms/%s.png", testName))
 	if err != nil {
@@ -47,25 +55,23 @@ func runRomTest(t *testing.T, testName string, frames int) {
 		return
 	}
 
-	for console.PPU.FrameCount < frames {
-		console.Step()
-	}
-
-	pl.SaveScreen(fmt.Sprintf("testRoms/%s.result.png", testName))
 	if !imagesAreEqual(expected, pl.FrontImg) {
 		t.Fail()
 	}
-
 }
 
 func TestBlargCpuInstrs(t *testing.T) {
-	runRomTest(t, "cpu_instrs", 4000)
+	runRomTest(t, "cpu_instrs.gb", 4000)
 }
 
 func TestBlargInstrTiming(t *testing.T) {
-	runRomTest(t, "instr_timing", 1000)
+	runRomTest(t, "instr_timing.gb", 1000)
 }
 
 func TestDMGAcid2(t *testing.T) {
-	runRomTest(t, "dmg-acid2", 1000)
+	runRomTest(t, "dmg-acid2.gb", 1000)
+}
+
+func TestCGBAcid2(t *testing.T) {
+	runRomTest(t, "cgb-acid2.gbc", 1000)
 }
