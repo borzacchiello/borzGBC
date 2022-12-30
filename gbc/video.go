@@ -274,7 +274,7 @@ func (ppu *Ppu) WriteCRamBg(value uint8) {
 	if ppu.CRAMBgAutoInc {
 		ppu.CRAMBgAddr += 1
 		if ppu.CRAMBgAddr == 64 {
-			ppu.CRAMObjAddr = 0
+			ppu.CRAMBgAddr = 0
 		}
 	}
 }

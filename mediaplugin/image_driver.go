@@ -1,7 +1,6 @@
 package mediaplugin
 
 import (
-	"fmt"
 	"image"
 	"image/color"
 	"image/png"
@@ -9,8 +8,9 @@ import (
 )
 
 type ImageVideoDriver struct {
-	img *image.RGBA
-	num int
+	backImg  *image.RGBA
+	FrontImg *image.RGBA
+	num      int
 }
 
 func MkImageVideoDriver() *ImageVideoDriver {
@@ -18,7 +18,8 @@ func MkImageVideoDriver() *ImageVideoDriver {
 
 	upLeft := image.Point{0, 0}
 	lowRight := image.Point{160, 144}
-	res.img = image.NewRGBA(image.Rectangle{upLeft, lowRight})
+	res.backImg = image.NewRGBA(image.Rectangle{upLeft, lowRight})
+	res.FrontImg = image.NewRGBA(image.Rectangle{upLeft, lowRight})
 
 	return res
 }
@@ -30,11 +31,17 @@ func (d *ImageVideoDriver) SetPixel(x, y int, c uint32) {
 	b = uint8((c >> 8) & 0xFF)
 	a = uint8(c & 0xFF)
 
-	d.img.SetRGBA(x, y, color.RGBA{r, g, b, a})
+	d.backImg.SetRGBA(x, y, color.RGBA{r, g, b, a})
 }
-func (d *ImageVideoDriver) CommitScreen() {
-	f, _ := os.Create(fmt.Sprintf("/tmp/img%03d.png", d.num))
-	png.Encode(f, d.img)
 
+func (d *ImageVideoDriver) CommitScreen() {
+	d.FrontImg = d.backImg
 	d.num += 1
+}
+
+func (d *ImageVideoDriver) SaveScreen(path string) {
+	f, _ := os.Create(path)
+	defer f.Close()
+
+	png.Encode(f, d.FrontImg)
 }

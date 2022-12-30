@@ -44,6 +44,7 @@ type Console struct {
 
 	// Debug Flags
 	PrintDebug bool
+	Verbose    bool
 }
 
 func (cons *Console) readIO(addr uint16) uint8 {
@@ -130,7 +131,9 @@ func (cons *Console) readIO(addr uint16) uint8 {
 		// CGB Only Register
 		return cons.PPU.ReadCRamObj()
 	default:
-		fmt.Printf("Unhandled IO Read @ %04x\n", addr)
+		if cons.Verbose {
+			fmt.Printf("Unhandled IO Read @ %04x\n", addr)
+		}
 	}
 	return 0xFF
 }
@@ -301,7 +304,9 @@ func (cons *Console) writeIO(addr uint16, value uint8) {
 		}
 		return
 	default:
-		fmt.Printf("Unhandled IO Write @ %04x <- %02x\n", addr, value)
+		if cons.Verbose {
+			fmt.Printf("Unhandled IO Write @ %04x <- %02x\n", addr, value)
+		}
 	}
 }
 
@@ -339,7 +344,9 @@ func (cons *Console) Read(addr uint16) uint8 {
 	case addr == 0xFFFF:
 		return cons.CPU.IE
 	default:
-		fmt.Printf("Unhandled read @ %04x\n", addr)
+		if cons.Verbose {
+			fmt.Printf("Unhandled read @ %04x\n", addr)
+		}
 	}
 	return 0
 }
@@ -380,7 +387,9 @@ func (cons *Console) Write(addr uint16, value uint8) {
 		cons.CPU.IE = value
 		return
 	}
-	fmt.Printf("Unhandled write @ %04x <- %02x\n", addr, value)
+	if cons.Verbose {
+		fmt.Printf("Unhandled write @ %04x <- %02x\n", addr, value)
+	}
 }
 
 func loadBoot(cart *Cart) ([]byte, error) {
@@ -456,6 +465,7 @@ func MakeConsole(rom_filepath string, videoDriver VideoDriver) (*Console, error)
 		CPUFreq:   GBCPU_FREQ,
 		BootROM:   boot,
 		InBootROM: true,
+		Verbose:   false,
 	}
 	res.PPU = MakePpu(res, videoDriver)
 	res.CPU = z80cpu.MakeZ80Cpu(res)
