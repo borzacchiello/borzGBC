@@ -244,7 +244,7 @@ func (cons *Console) writeIO(addr uint16, value uint8) {
 		return
 	case addr == 0xFF4D:
 		// CGB Only Register
-		cons.SpeedSwitch = value&1 | 0x7E
+		cons.SpeedSwitch = 0x7E
 		return
 	case addr == 0xFF4F:
 		// CGB Only Register

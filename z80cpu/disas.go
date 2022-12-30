@@ -134,262 +134,262 @@ func (disas *Z80Disas) DisassembleOneFromCPU(cpu *Z80Cpu) (int, string) {
 }
 
 var opcodeTable = []string{
-	"NOP",        // 00
-	"LD BC,nn",   // 01
-	"LD (BC),A",  // 02
-	"INC BC",     // 03
-	"INC B",      // 04
-	"DEC B",      // 05
-	"LD B,n",     // 06
-	"RLC A",      // 07
-	"LD (nn),SP", // 08
-	"ADD HL,BC",  // 09
-	"LD A,(BC)",  // 0a
-	"DEC BC",     // 0b
-	"INC C",      // 0c
-	"DEC C",      // 0d
-	"LD C,n",     // 0e
-	"RRC A",      // 0f
-	"STOP",       // 10
-	"LD DE,nn",   // 11
-	"LD (DE),A",  // 12
-	"INC DE",     // 13
-	"INC D",      // 14
-	"DEC D",      // 15
-	"LD D,n",     // 16
-	"RL A",       // 17
-	"JR n",       // 18
-	"ADD HL,DE",  // 19
-	"LD A,(DE)",  // 1a
-	"DEC DE",     // 1b
-	"INC E",      // 1c
-	"DEC E",      // 1d
-	"LD E,n",     // 1e
-	"RR A",       // 1f
-	"JR NZ,n",    // 20
-	"LD HL,nn",   // 21
-	"LDI (HL),A", // 22
-	"INC HL",     // 23
-	"INC H",      // 24
-	"DEC H",      // 25
-	"LD H,n",     // 26
-	"DAA",        // 27
-	"JR Z,n",     // 28
-	"ADD HL,HL",  // 29
-	"LDI A,(HL)", // 2a
-	"DEC HL",     // 2b
-	"INC L",      // 2c
-	"DEC L",      // 2d
-	"LD L,n",     // 2e
-	"CPL",        // 2f
-	"JR NC,n",    // 30
-	"LD SP,nn",   // 31
-	"LDD (HL),A", // 32
-	"INC SP",     // 33
-	"INC (HL)",   // 34
-	"DEC (HL)",   // 35
-	"LD (HL),n",  // 36
-	"SCF",        // 37
-	"JR C,n",     // 38
-	"ADD HL,SP",  // 39
-	"LDD A,(HL)", // 3a
-	"DEC SP",     // 3b
-	"INC A",      // 3c
-	"DEC A",      // 3d
-	"LD A,n",     // 3e
-	"CCF",        // 3f
-	"LD B,B",     // 40
-	"LD B,C",     // 41
-	"LD B,D",     // 42
-	"LD B,E",     // 43
-	"LD B,H",     // 44
-	"LD B,L",     // 45
-	"LD B,(HL)",  // 46
-	"LD B,A",     // 47
-	"LD C,B",     // 48
-	"LD C,C",     // 49
-	"LD C,D",     // 4a
-	"LD C,E",     // 4b
-	"LD C,H",     // 4c
-	"LD C,L",     // 4d
-	"LD C,(HL)",  // 4e
-	"LD C,A",     // 4f
-	"LD D,B",     // 50
-	"LD D,C",     // 51
-	"LD D,D",     // 52
-	"LD D,E",     // 53
-	"LD D,H",     // 54
-	"LD D,L",     // 55
-	"LD D,(HL)",  // 56
-	"LD D,A",     // 57
-	"LD E,B",     // 58
-	"LD E,C",     // 59
-	"LD E,D",     // 5a
-	"LD E,E",     // 5b
-	"LD E,H",     // 5c
-	"LD E,L",     // 5d
-	"LD E,(HL)",  // 5e
-	"LD E,A",     // 5f
-	"LD H,B",     // 60
-	"LD H,C",     // 61
-	"LD H,D",     // 62
-	"LD H,E",     // 63
-	"LD H,H",     // 64
-	"LD H,L",     // 65
-	"LD H,(HL)",  // 66
-	"LD H,A",     // 67
-	"LD L,B",     // 68
-	"LD L,C",     // 69
-	"LD L,D",     // 6a
-	"LD L,E",     // 6b
-	"LD L,H",     // 6c
-	"LD L,L",     // 6d
-	"LD L,(HL)",  // 6e
-	"LD L,A",     // 6f
-	"LD (HL),B",  // 70
-	"LD (HL),C",  // 71
-	"LD (HL),D",  // 72
-	"LD (HL),E",  // 73
-	"LD (HL),H",  // 74
-	"LD (HL),L",  // 75
-	"HALT",       // 76
-	"LD (HL),A",  // 77
-	"LD A,B",     // 78
-	"LD A,C",     // 79
-	"LD A,D",     // 7a
-	"LD A,E",     // 7b
-	"LD A,H",     // 7c
-	"LD A,L",     // 7d
-	"LD A,(HL)",  // 7e
-	"LD A,A",     // 7f
-	"ADD A,B",    // 80
-	"ADD A,C",    // 81
-	"ADD A,D",    // 82
-	"ADD A,E",    // 83
-	"ADD A,H",    // 84
-	"ADD A,L",    // 85
-	"ADD A,(HL)", // 86
-	"ADD A,A",    // 87
-	"ADC A,B",    // 88
-	"ADC A,C",    // 89
-	"ADC A,D",    // 8a
-	"ADC A,E",    // 8b
-	"ADC A,H",    // 8c
-	"ADC A,L",    // 8d
-	"ADC A,(HL)", // 8e
-	"ADC A,A",    // 8f
-	"SUB A,B",    // 90
-	"SUB A,C",    // 91
-	"SUB A,D",    // 92
-	"SUB A,E",    // 93
-	"SUB A,H",    // 94
-	"SUB A,L",    // 95
-	"SUB A,(HL)", // 96
-	"SUB A,A",    // 97
-	"SBC A,B",    // 98
-	"SBC A,C",    // 99
-	"SBC A,D",    // 9a
-	"SBC A,E",    // 9b
-	"SBC A,H",    // 9c
-	"SBC A,L",    // 9d
-	"SBC A,(HL)", // 9e
-	"SBC A,A",    // 9f
-	"AND B",      // a0
-	"AND C",      // a1
-	"AND D",      // a2
-	"AND E",      // a3
-	"AND H",      // a4
-	"AND L",      // a5
-	"AND (HL)",   // a6
-	"AND A",      // a7
-	"XOR B",      // a8
-	"XOR C",      // a9
-	"XOR D",      // aa
-	"XOR E",      // ab
-	"XOR H",      // ac
-	"XOR L",      // ad
-	"XOR (HL)",   // ae
-	"XOR A",      // af
-	"OR B",       // b0
-	"OR C",       // b1
-	"OR D",       // b2
-	"OR E",       // b3
-	"OR H",       // b4
-	"OR L",       // b5
-	"OR (HL)",    // b6
-	"OR A",       // b7
-	"CP B",       // b8
-	"CP C",       // b9
-	"CP D",       // ba
-	"CP E",       // bb
-	"CP H",       // bc
-	"CP L",       // bd
-	"CP (HL)",    // be
-	"CP A",       // bf
-	"RET NZ",     // c0
-	"POP BC",     // c1
-	"JP NZ,nn",   // c2
-	"JP nn",      // c3
-	"CALL NZ,nn", // c4
-	"PUSH BC",    // c5
-	"ADD A,n",    // c6
-	"RST 0",      // c7
-	"RET Z",      // c8
-	"RET",        // c9
-	"JP Z,nn",    // ca
-	"Ext ops",    // cb
-	"CALL Z,nn",  // cc
-	"CALL nn",    // cd
-	"ADC A,n",    // ce
-	"RST 8",      // cf
-	"RET NC",     // d0
-	"POP DE",     // d1
-	"JP NC,nn",   // d2
-	"XX",         // d3
-	"CALL NC,nn", // d4
-	"PUSH DE",    // d5
-	"SUB A,n",    // d6
-	"RST 10",     // d7
-	"RET C",      // d8
-	"RETI",       // d9
-	"JP C,nn",    // da
-	"XX",         // db
-	"CALL C,nn",  // dc
-	"XX",         // dd
-	"SBC A,n",    // de
-	"RST 18",     // df
-	"LDH (n),A",  // e0
-	"POP HL",     // e1
-	"LDH (C),A",  // e2
-	"XX",         // e3
-	"XX",         // e4
-	"PUSH HL",    // e5
-	"AND n",      // e6
-	"RST 20",     // e7
-	"ADD SP,d",   // e8
-	"JP (HL)",    // e9
-	"LD (nn),A",  // ea
-	"XX",         // eb
-	"XX",         // ec
-	"XX",         // ed
-	"XOR n",      // ee
-	"RST 28",     // ef
-	"LDH A,(n)",  // f0
-	"POP AF",     // f1
-	"XX",         // f2
-	"DI",         // f3
-	"XX",         // f4
-	"PUSH AF",    // f5
-	"OR n",       // f6
-	"RST 30",     // f7
-	"LDHL SP,d",  // f8
-	"LD SP,HL",   // f9
-	"LD A,(nn)",  // fa
-	"EI",         // fb
-	"XX",         // fc
-	"XX",         // fd
-	"CP n",       // fe
-	"RST 38",     // ff
+	"NOP",           // 00
+	"LD BC,nn",      // 01
+	"LD (BC),A",     // 02
+	"INC BC",        // 03
+	"INC B",         // 04
+	"DEC B",         // 05
+	"LD B,n",        // 06
+	"RLC A",         // 07
+	"LD (nn),SP",    // 08
+	"ADD HL,BC",     // 09
+	"LD A,(BC)",     // 0a
+	"DEC BC",        // 0b
+	"INC C",         // 0c
+	"DEC C",         // 0d
+	"LD C,n",        // 0e
+	"RRC A",         // 0f
+	"STOP",          // 10
+	"LD DE,nn",      // 11
+	"LD (DE),A",     // 12
+	"INC DE",        // 13
+	"INC D",         // 14
+	"DEC D",         // 15
+	"LD D,n",        // 16
+	"RL A",          // 17
+	"JR n",          // 18
+	"ADD HL,DE",     // 19
+	"LD A,(DE)",     // 1a
+	"DEC DE",        // 1b
+	"INC E",         // 1c
+	"DEC E",         // 1d
+	"LD E,n",        // 1e
+	"RR A",          // 1f
+	"JR NZ,n",       // 20
+	"LD HL,nn",      // 21
+	"LDI (HL),A",    // 22
+	"INC HL",        // 23
+	"INC H",         // 24
+	"DEC H",         // 25
+	"LD H,n",        // 26
+	"DAA",           // 27
+	"JR Z,n",        // 28
+	"ADD HL,HL",     // 29
+	"LDI A,(HL)",    // 2a
+	"DEC HL",        // 2b
+	"INC L",         // 2c
+	"DEC L",         // 2d
+	"LD L,n",        // 2e
+	"CPL",           // 2f
+	"JR NC,n",       // 30
+	"LD SP,nn",      // 31
+	"LDD (HL),A",    // 32
+	"INC SP",        // 33
+	"INC (HL)",      // 34
+	"DEC (HL)",      // 35
+	"LD (HL),n",     // 36
+	"SCF",           // 37
+	"JR C,n",        // 38
+	"ADD HL,SP",     // 39
+	"LDD A,(HL)",    // 3a
+	"DEC SP",        // 3b
+	"INC A",         // 3c
+	"DEC A",         // 3d
+	"LD A,n",        // 3e
+	"CCF",           // 3f
+	"LD B,B",        // 40
+	"LD B,C",        // 41
+	"LD B,D",        // 42
+	"LD B,E",        // 43
+	"LD B,H",        // 44
+	"LD B,L",        // 45
+	"LD B,(HL)",     // 46
+	"LD B,A",        // 47
+	"LD C,B",        // 48
+	"LD C,C",        // 49
+	"LD C,D",        // 4a
+	"LD C,E",        // 4b
+	"LD C,H",        // 4c
+	"LD C,L",        // 4d
+	"LD C,(HL)",     // 4e
+	"LD C,A",        // 4f
+	"LD D,B",        // 50
+	"LD D,C",        // 51
+	"LD D,D",        // 52
+	"LD D,E",        // 53
+	"LD D,H",        // 54
+	"LD D,L",        // 55
+	"LD D,(HL)",     // 56
+	"LD D,A",        // 57
+	"LD E,B",        // 58
+	"LD E,C",        // 59
+	"LD E,D",        // 5a
+	"LD E,E",        // 5b
+	"LD E,H",        // 5c
+	"LD E,L",        // 5d
+	"LD E,(HL)",     // 5e
+	"LD E,A",        // 5f
+	"LD H,B",        // 60
+	"LD H,C",        // 61
+	"LD H,D",        // 62
+	"LD H,E",        // 63
+	"LD H,H",        // 64
+	"LD H,L",        // 65
+	"LD H,(HL)",     // 66
+	"LD H,A",        // 67
+	"LD L,B",        // 68
+	"LD L,C",        // 69
+	"LD L,D",        // 6a
+	"LD L,E",        // 6b
+	"LD L,H",        // 6c
+	"LD L,L",        // 6d
+	"LD L,(HL)",     // 6e
+	"LD L,A",        // 6f
+	"LD (HL),B",     // 70
+	"LD (HL),C",     // 71
+	"LD (HL),D",     // 72
+	"LD (HL),E",     // 73
+	"LD (HL),H",     // 74
+	"LD (HL),L",     // 75
+	"HALT",          // 76
+	"LD (HL),A",     // 77
+	"LD A,B",        // 78
+	"LD A,C",        // 79
+	"LD A,D",        // 7a
+	"LD A,E",        // 7b
+	"LD A,H",        // 7c
+	"LD A,L",        // 7d
+	"LD A,(HL)",     // 7e
+	"LD A,A",        // 7f
+	"ADD A,B",       // 80
+	"ADD A,C",       // 81
+	"ADD A,D",       // 82
+	"ADD A,E",       // 83
+	"ADD A,H",       // 84
+	"ADD A,L",       // 85
+	"ADD A,(HL)",    // 86
+	"ADD A,A",       // 87
+	"ADC A,B",       // 88
+	"ADC A,C",       // 89
+	"ADC A,D",       // 8a
+	"ADC A,E",       // 8b
+	"ADC A,H",       // 8c
+	"ADC A,L",       // 8d
+	"ADC A,(HL)",    // 8e
+	"ADC A,A",       // 8f
+	"SUB A,B",       // 90
+	"SUB A,C",       // 91
+	"SUB A,D",       // 92
+	"SUB A,E",       // 93
+	"SUB A,H",       // 94
+	"SUB A,L",       // 95
+	"SUB A,(HL)",    // 96
+	"SUB A,A",       // 97
+	"SBC A,B",       // 98
+	"SBC A,C",       // 99
+	"SBC A,D",       // 9a
+	"SBC A,E",       // 9b
+	"SBC A,H",       // 9c
+	"SBC A,L",       // 9d
+	"SBC A,(HL)",    // 9e
+	"SBC A,A",       // 9f
+	"AND B",         // a0
+	"AND C",         // a1
+	"AND D",         // a2
+	"AND E",         // a3
+	"AND H",         // a4
+	"AND L",         // a5
+	"AND (HL)",      // a6
+	"AND A",         // a7
+	"XOR B",         // a8
+	"XOR C",         // a9
+	"XOR D",         // aa
+	"XOR E",         // ab
+	"XOR H",         // ac
+	"XOR L",         // ad
+	"XOR (HL)",      // ae
+	"XOR A",         // af
+	"OR B",          // b0
+	"OR C",          // b1
+	"OR D",          // b2
+	"OR E",          // b3
+	"OR H",          // b4
+	"OR L",          // b5
+	"OR (HL)",       // b6
+	"OR A",          // b7
+	"CP B",          // b8
+	"CP C",          // b9
+	"CP D",          // ba
+	"CP E",          // bb
+	"CP H",          // bc
+	"CP L",          // bd
+	"CP (HL)",       // be
+	"CP A",          // bf
+	"RET NZ",        // c0
+	"POP BC",        // c1
+	"JP NZ,nn",      // c2
+	"JP nn",         // c3
+	"CALL NZ,nn",    // c4
+	"PUSH BC",       // c5
+	"ADD A,n",       // c6
+	"RST 0",         // c7
+	"RET Z",         // c8
+	"RET",           // c9
+	"JP Z,nn",       // ca
+	"Ext ops",       // cb
+	"CALL Z,nn",     // cc
+	"CALL nn",       // cd
+	"ADC A,n",       // ce
+	"RST 8",         // cf
+	"RET NC",        // d0
+	"POP DE",        // d1
+	"JP NC,nn",      // d2
+	"XX",            // d3
+	"CALL NC,nn",    // d4
+	"PUSH DE",       // d5
+	"SUB A,n",       // d6
+	"RST 10",        // d7
+	"RET C",         // d8
+	"RETI",          // d9
+	"JP C,nn",       // da
+	"XX",            // db
+	"CALL C,nn",     // dc
+	"XX",            // dd
+	"SBC A,n",       // de
+	"RST 18",        // df
+	"LDH (n),A",     // e0
+	"POP HL",        // e1
+	"LDH (C),A",     // e2
+	"XX",            // e3
+	"XX",            // e4
+	"PUSH HL",       // e5
+	"AND n",         // e6
+	"RST 20",        // e7
+	"ADD SP,d",      // e8
+	"JP (HL)",       // e9
+	"LD (nn),A",     // ea
+	"XX",            // eb
+	"XX",            // ec
+	"XX",            // ed
+	"XOR n",         // ee
+	"RST 28",        // ef
+	"LDH A,(n)",     // f0
+	"POP AF",        // f1
+	"LD A,C+0xFF00", // f2
+	"DI",            // f3
+	"XX",            // f4
+	"PUSH AF",       // f5
+	"OR n",          // f6
+	"RST 30",        // f7
+	"LDHL SP,d",     // f8
+	"LD SP,HL",      // f9
+	"LD A,(nn)",     // fa
+	"EI",            // fb
+	"XX",            // fc
+	"XX",            // fd
+	"CP n",          // fe
+	"RST 38",        // ff
 }
 
 var cbOpcodeTable = []string{

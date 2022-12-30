@@ -28,6 +28,7 @@ func main() {
 	}
 	defer console.Destroy()
 
+	console.Verbose = false
 	console.CPU.EnableDisas = false
 	console.PrintDebug = false
 

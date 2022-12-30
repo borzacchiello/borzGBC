@@ -650,7 +650,7 @@ func (ppu *Ppu) Tick(ticks int) {
 
 		ppu.LY = 0
 		ppu.WindowScanline = 0
-		ppu.setMode(ACCESS_OAM)
+		ppu.setMode(HBLANK)
 		return
 	}
 

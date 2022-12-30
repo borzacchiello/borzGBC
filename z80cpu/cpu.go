@@ -823,6 +823,11 @@ func handler_nop() {}
 
 func handler_stop() {}
 
+func handler_undefined(cpu *Z80Cpu, opcode uint8) {
+	fmt.Printf("Executing an undefined opcode: %02x, halting\n", opcode)
+	cpu.IsHalted = true
+}
+
 var handlers = [256]func(*Z80Cpu){
 	func(cpu *Z80Cpu) { handler_nop() },                                                             // 00
 	func(cpu *Z80Cpu) { handler_ld_R_16(cpu, &cpu.B, &cpu.C, cpu.getPC16()) },                       // 01
@@ -1043,32 +1048,32 @@ var handlers = [256]func(*Z80Cpu){
 	func(cpu *Z80Cpu) { handler_ret_IF(cpu, cpu.flagCarry) },                                        // D8
 	func(cpu *Z80Cpu) { handler_ret(cpu); handler_ei(cpu) },                                         // D9
 	func(cpu *Z80Cpu) { handler_jp_IF(cpu, cpu.getPC16(), cpu.flagCarry) },                          // DA
-	func(cpu *Z80Cpu) { panic("Opcode DB unimplemented") },                                          // DB
+	func(cpu *Z80Cpu) { handler_undefined(cpu, 0xdb) },                                              // DB
 	func(cpu *Z80Cpu) { handler_call_IF(cpu, cpu.flagCarry) },                                       // DC
-	func(cpu *Z80Cpu) { panic("Opcode DD unimplemented") },                                          // DD
+	func(cpu *Z80Cpu) { handler_undefined(cpu, 0xdd) },                                              // DD
 	func(cpu *Z80Cpu) { handler_sbc_R_8(cpu, &cpu.A, cpu.getPC8()) },                                // DE
 	func(cpu *Z80Cpu) { handler_rst(cpu, 24) },                                                      // DF
 	func(cpu *Z80Cpu) { handler_ld_MEM_8(cpu, uint16(cpu.getPC8())+0xFF00, cpu.A) },                 // E0
 	func(cpu *Z80Cpu) { cpu.H, cpu.L = unpack_regcouple(cpu.StackPop16()) },                         // E1
 	func(cpu *Z80Cpu) { handler_ld_MEM_8(cpu, uint16(cpu.C)+0xFF00, cpu.A) },                        // E2
-	func(cpu *Z80Cpu) { panic("Opcode E3 unimplemented") },                                          // E3
-	func(cpu *Z80Cpu) { panic("Opcode E4 unimplemented") },                                          // E4
+	func(cpu *Z80Cpu) { handler_undefined(cpu, 0xe3) },                                              // E3
+	func(cpu *Z80Cpu) { handler_undefined(cpu, 0xe4) },                                              // E4
 	func(cpu *Z80Cpu) { cpu.StackPush16(pack_regcouple(cpu.H, cpu.L)) },                             // E5
 	func(cpu *Z80Cpu) { handler_and_R_8(cpu, &cpu.A, cpu.getPC8()) },                                // E6
 	func(cpu *Z80Cpu) { handler_rst(cpu, 32) },                                                      // E7
 	func(cpu *Z80Cpu) { handler_add_sp(cpu) },                                                       // E8
 	func(cpu *Z80Cpu) { handler_jp(cpu, pack_regcouple(cpu.H, cpu.L)) },                             // E9
 	func(cpu *Z80Cpu) { handler_ld_MEM_8(cpu, cpu.getPC16(), cpu.A) },                               // EA
-	func(cpu *Z80Cpu) { panic("Opcode EB unimplemented") },                                          // EB
-	func(cpu *Z80Cpu) { panic("Opcode EC unimplemented") },                                          // EC
-	func(cpu *Z80Cpu) { panic("Opcode ED unimplemented") },                                          // ED
+	func(cpu *Z80Cpu) { handler_undefined(cpu, 0xeb) },                                              // EB
+	func(cpu *Z80Cpu) { handler_undefined(cpu, 0xec) },                                              // EC
+	func(cpu *Z80Cpu) { handler_undefined(cpu, 0xed) },                                              // ED
 	func(cpu *Z80Cpu) { handler_xor_R_8(cpu, &cpu.A, cpu.getPC8()) },                                // EE
 	func(cpu *Z80Cpu) { handler_rst(cpu, 40) },                                                      // EF
 	func(cpu *Z80Cpu) { handler_ld_R_MEM_8(cpu, &cpu.A, uint16(cpu.getPC8())+0xFF00) },              // F0
 	func(cpu *Z80Cpu) { a, f := unpack_regcouple(cpu.StackPop16()); cpu.A = a; cpu.UnpackFlags(f) }, // F1
 	func(cpu *Z80Cpu) { handler_ld_R_MEM_8(cpu, &cpu.A, uint16(cpu.C)+0xFF00) },                     // F2
 	func(cpu *Z80Cpu) { handler_di(cpu) },                                                           // F3
-	func(cpu *Z80Cpu) { panic("Opcode F4 unimplemented") },                                          // F4
+	func(cpu *Z80Cpu) { handler_undefined(cpu, 0xf4) },                                              // F4
 	func(cpu *Z80Cpu) { cpu.StackPush16(pack_regcouple(cpu.A, cpu.PackFlags())) },                   // F5
 	func(cpu *Z80Cpu) { handler_or_R_8(cpu, &cpu.A, cpu.getPC8()) },                                 // F6
 	func(cpu *Z80Cpu) { handler_rst(cpu, 48) },                                                      // F7
@@ -1076,8 +1081,8 @@ var handlers = [256]func(*Z80Cpu){
 	func(cpu *Z80Cpu) { handler_ld_R_16_2(cpu, &cpu.SP, pack_regcouple(cpu.H, cpu.L)) },             // F9
 	func(cpu *Z80Cpu) { handler_ld_R_MEM_8(cpu, &cpu.A, cpu.getPC16()) },                            // FA
 	func(cpu *Z80Cpu) { handler_ei(cpu) },                                                           // FB
-	func(cpu *Z80Cpu) { panic("Opcode FC unimplemented") },                                          // FC
-	func(cpu *Z80Cpu) { panic("Opcode FD unimplemented") },                                          // FD
+	func(cpu *Z80Cpu) { handler_undefined(cpu, 0xfc) },                                              // FC
+	func(cpu *Z80Cpu) { handler_undefined(cpu, 0xfd) },                                              // FD
 	func(cpu *Z80Cpu) { handler_cp(cpu, cpu.A, cpu.getPC8()) },                                      // FE
 	func(cpu *Z80Cpu) { handler_rst(cpu, 56) },                                                      // FF
 }
