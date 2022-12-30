@@ -26,7 +26,7 @@ type Z80Cpu struct {
 	IE, IF uint8
 
 	branchWasTaken    bool
-	isHalted          bool
+	IsHalted          bool
 	interruptsEnabled bool
 
 	Interrupts []Z80Interrupt
@@ -51,7 +51,7 @@ func (cpu *Z80Cpu) Reset() {
 	cpu.SP = 0xff
 	cpu.PC = 0
 	cpu.OutBuffer = make([]byte, 0)
-	cpu.isHalted = false
+	cpu.IsHalted = false
 }
 
 func (cpu *Z80Cpu) RegisterInterrupt(interrupt Z80Interrupt) {
@@ -70,7 +70,7 @@ func (cpu *Z80Cpu) fetchOpcode() uint8 {
 
 func (cpu *Z80Cpu) handleInterrupts() bool {
 	if cpu.IE&cpu.IF&0xF != 0 {
-		cpu.isHalted = false
+		cpu.IsHalted = false
 	}
 
 	if !cpu.interruptsEnabled {
@@ -82,7 +82,7 @@ func (cpu *Z80Cpu) handleInterrupts() bool {
 		return false
 	}
 
-	cpu.isHalted = false
+	cpu.IsHalted = false
 	cpu.StackPush16(cpu.PC)
 	cpu.interruptsEnabled = false
 
@@ -108,7 +108,7 @@ func (cpu *Z80Cpu) ExecOne() int {
 		return 5
 	}
 
-	if cpu.isHalted {
+	if cpu.IsHalted {
 		return 1
 	}
 
@@ -816,7 +816,7 @@ func handler_out(cpu *Z80Cpu, value uint8) {
 }
 
 func handler_halt(cpu *Z80Cpu) {
-	cpu.isHalted = true
+	cpu.IsHalted = true
 }
 
 func handler_nop() {}

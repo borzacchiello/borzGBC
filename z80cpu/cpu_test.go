@@ -274,7 +274,7 @@ func TestCallRet(t *testing.T) {
 		t.Errorf("Invalid ret address %04x", cpu.PC)
 	}
 	cpu.ExecOne()
-	if !cpu.isHalted {
+	if !cpu.IsHalted {
 		t.Errorf("CPU is not Halted")
 	}
 }
@@ -320,7 +320,7 @@ func TestProgHLToHex(t *testing.T) {
 		cpu.H = uint8(inp >> 8)
 		cpu.L = uint8(inp & 0xff)
 
-		for !cpu.isHalted {
+		for !cpu.IsHalted {
 			cpu.ExecOne()
 		}
 		return string(cpu.OutBuffer)

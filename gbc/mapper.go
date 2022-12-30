@@ -34,7 +34,6 @@ func (m ROMOnlyMapper) MapperRead(addr uint16) uint8 {
 
 func (m ROMOnlyMapper) MapperWrite(addr uint16, value uint8) {
 	fmt.Printf("Trying to write on ROMOnlyMapper @ 0x%04x <- 0x%02x\n", addr, value)
-	return
 }
 
 type MBC1Mapper struct {
@@ -62,7 +61,7 @@ func MakeMBC1Mapper(cart *Cart) *MBC1Mapper {
 
 func (m *MBC1Mapper) MapperRead(addr uint16) uint8 {
 	switch {
-	case 0x0000 <= addr && addr <= 0x3FFF:
+	case addr <= 0x3FFF:
 		if !m.advBankingMode {
 			return m.cart.ROMBanks[0][addr]
 		}
@@ -91,7 +90,7 @@ func (m *MBC1Mapper) MapperRead(addr uint16) uint8 {
 
 func (m *MBC1Mapper) MapperWrite(addr uint16, value uint8) {
 	switch {
-	case 0x0000 <= addr && addr <= 0x1FFF:
+	case addr <= 0x1FFF:
 		if value&0xF == 0xA {
 			m.ramEnabled = true
 		} else {
@@ -128,7 +127,6 @@ func (m *MBC1Mapper) MapperWrite(addr uint16, value uint8) {
 	}
 
 	fmt.Printf("Unexpected address in MBC1Mapper Write: 0x%04x <- 0x%02x\n", addr, value)
-	return
 }
 
 type MBC5Mapper struct {
@@ -152,7 +150,7 @@ func MakeMBC5Mapper(cart *Cart) *MBC5Mapper {
 
 func (m *MBC5Mapper) MapperRead(addr uint16) uint8 {
 	switch {
-	case 0x0000 <= addr && addr <= 0x3FFF:
+	case addr <= 0x3FFF:
 		return m.cart.ROMBanks[0][addr]
 	case 0x4000 <= addr && addr <= 0x7FFF:
 		off := addr & 0x3FFF
@@ -172,7 +170,7 @@ func (m *MBC5Mapper) MapperRead(addr uint16) uint8 {
 
 func (m *MBC5Mapper) MapperWrite(addr uint16, value uint8) {
 	switch {
-	case 0x0000 <= addr && addr <= 0x1FFF:
+	case addr <= 0x1FFF:
 		if value&0xF == 0xA {
 			m.ramEnabled = true
 		} else {
@@ -201,5 +199,4 @@ func (m *MBC5Mapper) MapperWrite(addr uint16, value uint8) {
 	}
 
 	fmt.Printf("Unexpected address in MBC5Mapper Write: 0x%04x <- 0x%02x\n", addr, value)
-	return
 }

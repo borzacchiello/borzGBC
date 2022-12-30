@@ -34,9 +34,10 @@ type Console struct {
 	WorkRAM [8][0x1000]byte
 
 	// CGB Registers and data
-	RamBank uint8 // RAM bank @ 0xD000-0xDFFF
-	DmaSrc  uint16
-	DmaDst  uint16
+	RamBank     uint8 // RAM bank @ 0xD000-0xDFFF
+	DmaSrc      uint16
+	DmaDst      uint16
+	SpeedSwitch uint8
 
 	InBootROM bool
 	BootROM   []byte
@@ -105,6 +106,10 @@ func (cons *Console) readIO(addr uint16) uint8 {
 		return cons.PPU.WY
 	case addr == 0xFF4B:
 		return cons.PPU.WX
+	case addr == 0xFF4D:
+		// CGB Only Register
+		// FIXME: Implement speed switch
+		return cons.SpeedSwitch
 	case addr == 0xFF4F:
 		// CGB Only Register
 		return cons.PPU.VRAMBank
@@ -145,8 +150,8 @@ func (cons *Console) cgbDmaTransfer(value uint8) {
 	// FIXME: The transfer does not happen in one shot, but depending on the must
 	//        significant bit of "value" should be performed in different ways
 	src := cons.DmaSrc & 0xFFF0
-	dst := cons.DmaDst & 0xFFF0
-	len := uint16(value&0x7F)*16 + 1
+	dst := cons.DmaDst&0x1FF0 | 0x8000
+	len := (uint16(value&0x7F) + 1) * 16
 
 	for i := uint16(0); i < len; i++ {
 		cons.Write(dst+i, cons.Read(src+i))
@@ -233,9 +238,13 @@ func (cons *Console) writeIO(addr uint16, value uint8) {
 	case addr == 0xFF4B:
 		cons.PPU.WX = value
 		return
+	case addr == 0xFF4D:
+		// CGB Only Register
+		cons.SpeedSwitch = value&1 | 0x7E
+		return
 	case addr == 0xFF4F:
 		// CGB Only Register
-		if value&1 == 0 {
+		if value == 0 {
 			cons.PPU.VRAMBank = 0
 		} else {
 			cons.PPU.VRAMBank = 1
@@ -298,7 +307,7 @@ func (cons *Console) writeIO(addr uint16, value uint8) {
 
 func (cons *Console) Read(addr uint16) uint8 {
 	switch {
-	case 0x0000 <= addr && addr <= 0x7FFF:
+	case addr <= 0x7FFF:
 		if cons.InBootROM {
 			if addr < 0x100 {
 				return cons.BootROM[addr]
@@ -337,7 +346,7 @@ func (cons *Console) Read(addr uint16) uint8 {
 
 func (cons *Console) Write(addr uint16, value uint8) {
 	switch {
-	case 0x0000 <= addr && addr <= 0x7FFF:
+	case addr <= 0x7FFF:
 		cons.Cart.Map.MapperWrite(addr, value)
 		return
 	case 0x8000 <= addr && addr <= 0x9FFF:
@@ -376,8 +385,8 @@ func (cons *Console) Write(addr uint16, value uint8) {
 
 func loadBoot(cart *Cart) ([]byte, error) {
 	// FIXME: load the correct ROM and parametrize BootROMs location
-	if cart.header.CgbFlag == 0xC0 {
-		return nil, CartError("Unsupported cartridge type")
+	if cart.header.CgbFlag != 0 {
+		return os.ReadFile("BootROMs/cgb.bin")
 	}
 	return os.ReadFile("BootROMs/dmg.bin")
 }
@@ -443,7 +452,7 @@ func MakeConsole(rom_filepath string, videoDriver VideoDriver) (*Console, error)
 		Cart:      cart,
 		Input:     &Joypad{},
 		RamBank:   1,
-		CGBMode:   false,
+		CGBMode:   cart.header.CgbFlag != 0,
 		CPUFreq:   GBCPU_FREQ,
 		BootROM:   boot,
 		InBootROM: true,
