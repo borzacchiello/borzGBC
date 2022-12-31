@@ -682,7 +682,7 @@ func (ppu *Ppu) Tick(ticks int) {
 				ppu.WindowScanline += 1
 			}
 
-			if ppu.LY == 143 {
+			if ppu.LY == 144 {
 				ppu.setMode(VBLANK)
 
 				ppu.Driver.CommitScreen()
@@ -710,7 +710,7 @@ func (ppu *Ppu) Tick(ticks int) {
 				ppu.WindowScanline += 1
 			}
 
-			if ppu.LY == 153 {
+			if ppu.LY == 154 {
 				ppu.LY = 0
 				ppu.WindowScanline = 0
 				ppu.setMode(ACCESS_OAM)
