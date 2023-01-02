@@ -98,6 +98,12 @@ type Ppu struct {
 	VRAMBank uint8
 	OamRAM   [0xA0]uint8
 
+	// Pending DMA
+	PendingHblankDmaLen uint16
+	PendingHblankDmaSrc uint16
+	PendingHblankDmaDst uint16
+	PendingHblankDma    bool
+
 	// CGB Palette RAM
 	CRAMBg         [0x40]uint8
 	CRAMBgAddr     uint8
@@ -684,6 +690,26 @@ func (ppu *Ppu) Tick(ticks int) {
 
 			if ppu.LY == 144 {
 				ppu.setMode(VBLANK)
+
+				if ppu.PendingHblankDma {
+					src := ppu.PendingHblankDmaSrc
+					dst := ppu.PendingHblankDmaDst
+					len := uint16(16)
+					if len > ppu.PendingHblankDmaLen {
+						len = ppu.PendingHblankDmaLen
+					}
+
+					for i := uint16(0); i < len; i++ {
+						ppu.GBC.Write(dst+i, ppu.GBC.Read(src+i))
+					}
+					ppu.PendingHblankDmaLen -= len
+					if ppu.PendingHblankDmaLen == 0 {
+						ppu.PendingHblankDma = false
+					} else {
+						ppu.PendingHblankDmaSrc += 16
+						ppu.PendingHblankDmaDst += 16
+					}
+				}
 
 				ppu.Driver.CommitScreen()
 				ppu.FrameCount += 1

@@ -34,6 +34,10 @@ type Console struct {
 	HighRAM [0x80]byte
 	WorkRAM [8][0x1000]byte
 
+	// DMA
+	dmaCycles int
+	dmaValue  uint8
+
 	// CGB Registers and data
 	RamBank     uint8 // RAM bank @ 0xD000-0xDFFF
 	DmaSrc      uint16
@@ -122,8 +126,9 @@ func (cons *Console) readIO(addr uint16) uint8 {
 		return 1
 	case addr == 0xFF55:
 		// CGB Only Register
-		// FIXME: This should indicate whether the DMA transfer is happening.
-		//        Currently we do the transfer in one shot, so it returns always 0xFF
+		if cons.PPU.PendingHblankDma {
+			return uint8((cons.PPU.PendingHblankDmaLen - 1) / 16)
+		}
 		return 0xFF
 	case addr == 0xFF69:
 		// CGB Only Register
@@ -131,6 +136,12 @@ func (cons *Console) readIO(addr uint16) uint8 {
 	case addr == 0xFF6B:
 		// CGB Only Register
 		return cons.PPU.ReadCRamObj()
+	case addr == 0xFF6C:
+		// CGB Only Register
+		if cons.CGBMode {
+			return 1
+		}
+		return 0
 	case addr == 0xFF70:
 		// CGB Only Register
 		return cons.PPU.VRAMBank
@@ -154,14 +165,22 @@ func (cons *Console) dmaTransfer(value uint8) {
 }
 
 func (cons *Console) cgbDmaTransfer(value uint8) {
-	// FIXME: The transfer does not happen in one shot, but depending on the must
-	//        significant bit of "value" should be performed in different ways
-	src := cons.DmaSrc & 0xFFF0
-	dst := cons.DmaDst&0x1FF0 | 0x8000
-	len := (uint16(value&0x7F) + 1) * 16
+	if (value>>7)&1 == 0 {
+		cons.PPU.PendingHblankDma = false
 
-	for i := uint16(0); i < len; i++ {
-		cons.Write(dst+i, cons.Read(src+i))
+		src := cons.DmaSrc & 0xFFF0
+		dst := cons.DmaDst&0x1FF0 | 0x8000
+		len := (uint16(value&0x7F) + 1) * 16
+
+		for i := uint16(0); i < len; i++ {
+			cons.Write(dst+i, cons.Read(src+i))
+		}
+	} else {
+		// HBLANK transfer
+		cons.PPU.PendingHblankDma = true
+		cons.PPU.PendingHblankDmaLen = (uint16(value&0x7F) + 1) * 16
+		cons.PPU.PendingHblankDmaSrc = cons.DmaSrc & 0xFFF0
+		cons.PPU.PendingHblankDmaDst = cons.DmaDst&0x1FF0 | 0x8000
 	}
 }
 
@@ -228,7 +247,8 @@ func (cons *Console) writeIO(addr uint16, value uint8) {
 		cons.PPU.LYC = value
 		return
 	case addr == 0xFF46:
-		cons.dmaTransfer(value)
+		cons.dmaCycles = 640
+		cons.dmaValue = value
 		return
 	case addr == 0xFF47:
 		cons.PPU.BGP = value
@@ -299,6 +319,9 @@ func (cons *Console) writeIO(addr uint16, value uint8) {
 	case addr == 0xFF6B:
 		// CGB Only Register
 		cons.PPU.WriteCRamObj(value)
+		return
+	case addr == 0xFF6C:
+		// CGB Only Register
 		return
 	case addr == 0xFF70:
 		// CGB Only Register
@@ -532,6 +555,15 @@ func (cons *Console) Step() int {
 		cons.timer.Tick(cpuTicks)
 		cons.PPU.Tick(cpuTicks)
 		cons.Input.Tick(cpuTicks)
+
+		if cons.dmaCycles > 0 {
+			// Process DMA
+			cons.dmaCycles -= cpuTicks * 4
+			if cons.dmaCycles <= 0 {
+				cons.dmaCycles = 0
+				cons.dmaTransfer(cons.dmaValue)
+			}
+		}
 
 		totTicks += cpuTicks
 		prevTicks = cpuTicks
