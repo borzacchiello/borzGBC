@@ -130,7 +130,7 @@ func (cons *Console) readIO(addr uint16) uint8 {
 	case addr == 0xFF55:
 		// CGB Only Register
 		if cons.PPU.PendingHblankDma {
-			return uint8((cons.PPU.PendingHblankDmaLen - 1) / 16)
+			return uint8((cons.PPU.PendingHblankDmaLen-1)/16) | 0x80
 		}
 		return 0xFF
 	case addr == 0xFF69:
@@ -290,18 +290,22 @@ func (cons *Console) writeIO(addr uint16, value uint8) {
 		return
 	case addr == 0xFF51:
 		// CGB Only Register
+		cons.DmaSrc &= 0xFF
 		cons.DmaSrc |= uint16(value) << 8
 		return
 	case addr == 0xFF52:
 		// CGB Only Register
+		cons.DmaSrc &= 0xFF00
 		cons.DmaSrc |= uint16(value)
 		return
 	case addr == 0xFF53:
 		// CGB Only Register
+		cons.DmaDst &= 0xFF
 		cons.DmaDst |= uint16(value) << 8
 		return
 	case addr == 0xFF54:
 		// CGB Only Register
+		cons.DmaDst &= 0xFF00
 		cons.DmaDst |= uint16(value)
 		return
 	case addr == 0xFF55:

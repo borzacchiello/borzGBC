@@ -688,28 +688,28 @@ func (ppu *Ppu) Tick(ticks int) {
 				ppu.WindowScanline += 1
 			}
 
+			if ppu.PendingHblankDma {
+				src := ppu.PendingHblankDmaSrc
+				dst := ppu.PendingHblankDmaDst
+				len := uint16(16)
+				if len > ppu.PendingHblankDmaLen {
+					len = ppu.PendingHblankDmaLen
+				}
+
+				for i := uint16(0); i < len; i++ {
+					ppu.GBC.Write(dst+i, ppu.GBC.Read(src+i))
+				}
+				ppu.PendingHblankDmaLen -= len
+				if ppu.PendingHblankDmaLen == 0 {
+					ppu.PendingHblankDma = false
+				} else {
+					ppu.PendingHblankDmaSrc += 16
+					ppu.PendingHblankDmaDst += 16
+				}
+			}
+
 			if ppu.LY == 144 {
 				ppu.setMode(VBLANK)
-
-				if ppu.PendingHblankDma {
-					src := ppu.PendingHblankDmaSrc
-					dst := ppu.PendingHblankDmaDst
-					len := uint16(16)
-					if len > ppu.PendingHblankDmaLen {
-						len = ppu.PendingHblankDmaLen
-					}
-
-					for i := uint16(0); i < len; i++ {
-						ppu.GBC.Write(dst+i, ppu.GBC.Read(src+i))
-					}
-					ppu.PendingHblankDmaLen -= len
-					if ppu.PendingHblankDmaLen == 0 {
-						ppu.PendingHblankDma = false
-					} else {
-						ppu.PendingHblankDmaSrc += 16
-						ppu.PendingHblankDmaDst += 16
-					}
-				}
 
 				ppu.Driver.CommitScreen()
 				ppu.FrameCount += 1
