@@ -269,6 +269,9 @@ func (cons *Console) writeIO(addr uint16, value uint8) {
 		return
 	case addr == 0xFF4B:
 		cons.PPU.WX = value
+		if cons.PPU.WX < 7 {
+			cons.PPU.WX = 7
+		}
 		return
 	case addr == 0xFF4D:
 		// CGB Only Register
