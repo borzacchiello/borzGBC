@@ -76,10 +76,18 @@ func TestCGBAcid2(t *testing.T) {
 	runRomTest(t, "MattCurrie/cgb-acid2.gbc", 1000)
 }
 
-func TestMooneyeOamDmaBasic(t *testing.T) {
+func TestMooneyeOamDma_basic(t *testing.T) {
 	runRomTest(t, "Mooneye/oam_dma/basic.gb", 1000)
 }
 
-func TestMooneyeOamDmaRegRead(t *testing.T) {
+func TestMooneyeOamDma_reg_read(t *testing.T) {
 	runRomTest(t, "Mooneye/oam_dma/reg_read.gb", 1000)
+}
+
+func TestMooneyeBits_mem_oam(t *testing.T) {
+	runRomTest(t, "Mooneye/bits/mem_oam.gb", 1000)
+}
+
+func TestMooneyeBits_reg_f(t *testing.T) {
+	runRomTest(t, "Mooneye/bits/reg_f.gb", 1000)
 }
