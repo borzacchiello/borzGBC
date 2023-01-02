@@ -117,7 +117,8 @@ func (cons *Console) readIO(addr uint16) uint8 {
 	case addr == 0xFF4D:
 		// CGB Only Register
 		// FIXME: Implement speed switch
-		return cons.SpeedSwitch
+		fmt.Printf("WARNING: SpeedSwitch unimplemented [READ]\n")
+		return 0xf9
 	case addr == 0xFF4F:
 		// CGB Only Register
 		return cons.PPU.VRAMBank
@@ -146,7 +147,7 @@ func (cons *Console) readIO(addr uint16) uint8 {
 		return 0
 	case addr == 0xFF70:
 		// CGB Only Register
-		return cons.PPU.VRAMBank
+		return cons.RamBank
 	default:
 		if cons.Verbose {
 			fmt.Printf("Unhandled IO Read @ %04x\n", addr)
@@ -269,6 +270,7 @@ func (cons *Console) writeIO(addr uint16, value uint8) {
 		return
 	case addr == 0xFF4D:
 		// CGB Only Register
+		fmt.Printf("WARNING: SpeedSwitch unimplemented [WRITE %d]\n", value)
 		cons.SpeedSwitch = 0x7E
 		return
 	case addr == 0xFF4F:
