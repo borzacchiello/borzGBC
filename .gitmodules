@@ -1,0 +1,3 @@
+[submodule "testRoms"]
+	path = testRoms
+	url = https://github.com/borzacchiello/borzGBC-testroms.git

@@ -61,17 +61,17 @@ func runRomTest(t *testing.T, test string, frames int) {
 }
 
 func TestBlargCpuInstrs(t *testing.T) {
-	runRomTest(t, "cpu_instrs.gb", 4000)
+	runRomTest(t, "Blargg/cpu_instrs.gb", 4000)
 }
 
 func TestBlargInstrTiming(t *testing.T) {
-	runRomTest(t, "instr_timing.gb", 1000)
+	runRomTest(t, "Blargg/instr_timing.gb", 1000)
 }
 
 func TestDMGAcid2(t *testing.T) {
-	runRomTest(t, "dmg-acid2.gb", 1000)
+	runRomTest(t, "MattCurrie/dmg-acid2.gb", 1000)
 }
 
 func TestCGBAcid2(t *testing.T) {
-	runRomTest(t, "cgb-acid2.gbc", 1000)
+	runRomTest(t, "MattCurrie/cgb-acid2.gbc", 1000)
 }
