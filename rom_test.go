@@ -75,3 +75,11 @@ func TestDMGAcid2(t *testing.T) {
 func TestCGBAcid2(t *testing.T) {
 	runRomTest(t, "MattCurrie/cgb-acid2.gbc", 1000)
 }
+
+func TestMooneyeOamDmaBasic(t *testing.T) {
+	runRomTest(t, "Mooneye/oam_dma/basic.gb", 1000)
+}
+
+func TestMooneyeOamDmaRegRead(t *testing.T) {
+	runRomTest(t, "Mooneye/oam_dma/reg_read.gb", 1000)
+}

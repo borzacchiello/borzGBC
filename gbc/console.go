@@ -102,6 +102,8 @@ func (cons *Console) readIO(addr uint16) uint8 {
 		return cons.PPU.LY
 	case addr == 0xFF45:
 		return cons.PPU.LYC
+	case addr == 0xFF46:
+		return cons.dmaValue
 	case addr == 0xFF47:
 		return cons.PPU.BGP
 	case addr == 0xFF48:
@@ -247,7 +249,7 @@ func (cons *Console) writeIO(addr uint16, value uint8) {
 		cons.PPU.LYC = value
 		return
 	case addr == 0xFF46:
-		cons.dmaCycles = 640
+		cons.dmaCycles = 648
 		cons.dmaValue = value
 		return
 	case addr == 0xFF47:
