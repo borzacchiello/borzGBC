@@ -661,10 +661,6 @@ func (ppu *Ppu) Tick(ticks int) {
 		if ppu.CycleCount >= 70224 {
 			ppu.CycleCount %= 70224
 		}
-
-		ppu.LY = 0
-		ppu.WindowScanline = 0
-		ppu.setMode(HBLANK)
 		return
 	}
 
@@ -692,7 +688,7 @@ func (ppu *Ppu) Tick(ticks int) {
 			ppu.LY += 1
 			ppu.checkCoincidenceLY_LYC()
 
-			if ppu.WX <= 166 && ppu.WY <= 143 {
+			if ppu.WX <= 166 {
 				ppu.WindowScanline += 1
 			}
 
@@ -739,10 +735,6 @@ func (ppu *Ppu) Tick(ticks int) {
 
 			ppu.LY += 1
 			ppu.checkCoincidenceLY_LYC()
-
-			if ppu.WX <= 166 && ppu.WY <= 143 {
-				ppu.WindowScanline += 1
-			}
 
 			if ppu.LY == 154 {
 				ppu.LY = 0
