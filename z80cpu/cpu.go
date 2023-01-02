@@ -27,6 +27,7 @@ type Z80Cpu struct {
 
 	branchWasTaken    bool
 	IsHalted          bool
+	IsStopped         bool
 	interruptsEnabled bool
 
 	Interrupts []Z80Interrupt
@@ -821,7 +822,11 @@ func handler_halt(cpu *Z80Cpu) {
 
 func handler_nop() {}
 
-func handler_stop() {}
+func handler_stop(cpu *Z80Cpu) {
+	// It should be a two byte opcode
+	_ = cpu.getPC8()
+	cpu.IsStopped = true
+}
 
 func handler_undefined(cpu *Z80Cpu, opcode uint8) {
 	fmt.Printf("Executing an undefined opcode: %02x, halting\n", opcode)
@@ -845,7 +850,7 @@ var handlers = [256]func(*Z80Cpu){
 	func(cpu *Z80Cpu) { handler_dec_R_8(cpu, &cpu.C) },                                              // 0D
 	func(cpu *Z80Cpu) { handler_ld_R_8(cpu, &cpu.C, cpu.getPC8()) },                                 // 0E
 	func(cpu *Z80Cpu) { handler_rrc_R(cpu, &cpu.A); cpu.flagWasZero = false /* rrca */ },            // 0F
-	func(cpu *Z80Cpu) { handler_stop() },                                                            // 10
+	func(cpu *Z80Cpu) { handler_stop(cpu) },                                                         // 10
 	func(cpu *Z80Cpu) { handler_ld_R_16(cpu, &cpu.D, &cpu.E, cpu.getPC16()) },                       // 11
 	func(cpu *Z80Cpu) { handler_ld_MEM_8(cpu, pack_regcouple(cpu.D, cpu.E), cpu.A) },                // 12
 	func(cpu *Z80Cpu) { handler_inc_R_16(cpu, &cpu.D, &cpu.E) },                                     // 13

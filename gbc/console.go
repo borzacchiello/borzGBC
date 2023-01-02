@@ -39,10 +39,11 @@ type Console struct {
 	dmaValue  uint8
 
 	// CGB Registers and data
-	RamBank     uint8 // RAM bank @ 0xD000-0xDFFF
-	DmaSrc      uint16
-	DmaDst      uint16
-	SpeedSwitch uint8
+	RamBank         uint8 // RAM bank @ 0xD000-0xDFFF
+	DmaSrc          uint16
+	DmaDst          uint16
+	SpeedSwitch     uint8
+	DoubleSpeedMode bool
 
 	InBootROM bool
 	BootROM   []byte
@@ -116,9 +117,10 @@ func (cons *Console) readIO(addr uint16) uint8 {
 		return cons.PPU.WX
 	case addr == 0xFF4D:
 		// CGB Only Register
-		// FIXME: Implement speed switch
-		fmt.Printf("WARNING: SpeedSwitch unimplemented [READ]\n")
-		return 0xf9
+		if !cons.CGBMode {
+			return 0xFF
+		}
+		return cons.SpeedSwitch | 0x7E
 	case addr == 0xFF4F:
 		// CGB Only Register
 		return cons.PPU.VRAMBank
@@ -270,8 +272,7 @@ func (cons *Console) writeIO(addr uint16, value uint8) {
 		return
 	case addr == 0xFF4D:
 		// CGB Only Register
-		fmt.Printf("WARNING: SpeedSwitch unimplemented [WRITE %d]\n", value)
-		cons.SpeedSwitch = 0x7E
+		cons.SpeedSwitch = (cons.SpeedSwitch & 0x80) | (value & 1)
 		return
 	case addr == 0xFF4F:
 		// CGB Only Register
@@ -514,13 +515,15 @@ func MakeConsole(rom_filepath string, videoDriver VideoDriver) (*Console, error)
 	}
 
 	res := &Console{
-		Cart:      cart,
-		RamBank:   1,
-		CGBMode:   cart.header.CgbFlag != 0,
-		CPUFreq:   GBCPU_FREQ,
-		BootROM:   boot,
-		InBootROM: true,
-		Verbose:   false,
+		Cart:            cart,
+		RamBank:         1,
+		CGBMode:         cart.header.CgbFlag != 0,
+		CPUFreq:         GBCPU_FREQ,
+		BootROM:         boot,
+		InBootROM:       true,
+		SpeedSwitch:     0,
+		DoubleSpeedMode: false,
+		Verbose:         false,
 	}
 	res.PPU = MakePpu(res, videoDriver)
 	res.CPU = z80cpu.MakeZ80Cpu(res)
@@ -560,6 +563,15 @@ func (cons *Console) Step() int {
 		}
 
 		cpuTicks := cons.CPU.ExecOne()
+		if cons.CPU.IsStopped {
+			if cons.CGBMode && cons.SpeedSwitch&1 == 1 {
+				cons.SpeedSwitch = (cons.SpeedSwitch ^ 0x80) & 0x80
+				cons.DoubleSpeedMode = !cons.DoubleSpeedMode
+				cons.CPU.IsStopped = false
+				continue
+			}
+		}
+
 		cons.timer.Tick(cpuTicks)
 		cons.PPU.Tick(cpuTicks)
 		cons.Input.Tick(cpuTicks)
@@ -581,5 +593,9 @@ func (cons *Console) Step() int {
 }
 
 func (cons *Console) GetMs(ticks int) int {
-	return ticks * 4 * 1000 / cons.CPUFreq
+	res := ticks * 4 * 1000 / cons.CPUFreq
+	if cons.DoubleSpeedMode {
+		res /= 2
+	}
+	return res
 }

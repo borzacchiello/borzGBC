@@ -198,6 +198,10 @@ func MakePpu(GBC *Console, videoDriver VideoDriver) *Ppu {
 	return ppu
 }
 
+func (ppu *Ppu) DisableLCD() {
+	ppu.LCDC &= 0x7F
+}
+
 func (ppu *Ppu) setPixel(x, y int, c uint8, pixelInfo PixelInfo, palette *Palette) {
 	color := palette.colors[c]
 
@@ -647,7 +651,11 @@ func (ppu *Ppu) checkCoincidenceLY_LYC() {
 }
 
 func (ppu *Ppu) Tick(ticks int) {
-	ppu.CycleCount += ticks * 4
+	clocks := ticks * 4
+	if ppu.GBC.DoubleSpeedMode {
+		clocks = ticks * 2
+	}
+	ppu.CycleCount += clocks
 
 	if !ppu.DisplayEnabled() {
 		if ppu.CycleCount >= 70224 {
