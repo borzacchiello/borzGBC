@@ -91,3 +91,7 @@ func TestMooneyeBits_mem_oam(t *testing.T) {
 func TestMooneyeBits_reg_f(t *testing.T) {
 	runRomTest(t, "Mooneye/bits/reg_f.gb", 1000)
 }
+
+func TestMooneye_sprite_priority(t *testing.T) {
+	runRomTest(t, "Mooneye/sprite_priority.gb", 1000)
+}

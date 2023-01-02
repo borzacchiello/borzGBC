@@ -276,6 +276,9 @@ func (m *MBC5Mapper) MapperWrite(addr uint16, value uint8) {
 		m.romBank %= uint16(len(m.cart.ROMBanks))
 		return
 	case 0x4000 <= addr && addr <= 0x5FFF:
+		if len(m.cart.RAMBanks) == 0 {
+			return
+		}
 		m.ramBank = value & 0xf
 		m.ramBank %= uint8(len(m.cart.RAMBanks))
 		return

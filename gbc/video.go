@@ -510,7 +510,7 @@ func (ppu *Ppu) drawWindowLine() {
 		}
 
 		for x := 0; x < 8; x++ {
-			if screen_x >= SCREEN_WIDTH {
+			if screen_x < 0 || screen_x >= SCREEN_WIDTH {
 				continue
 			}
 
@@ -575,7 +575,7 @@ func (ppu *Ppu) drawSprites() {
 		for x := 0; x < 8; x++ {
 			tileNum := int(sprite.tile)
 			if ppu.SpriteSize() {
-				tileNum &= 0xFFFFFFFE
+				tileNum -= tileNum % 2
 			}
 			if ppu.GBC.CGBMode && sprite.cgbVramBank() == 1 {
 				tileNum += 512
