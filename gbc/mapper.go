@@ -75,7 +75,7 @@ func (m *MBC1Mapper) MapperRead(addr uint16) uint8 {
 		return m.cart.ROMBanks[bank][off]
 	case 0xA000 <= addr && addr <= 0xBFFF:
 		if len(m.cart.RAMBanks) == 0 || !m.ramEnabled {
-			return 0
+			return 0xFF
 		}
 		off := addr & 0x1FFF
 		if !m.advBankingMode {

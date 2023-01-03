@@ -95,3 +95,83 @@ func TestMooneyeBits_reg_f(t *testing.T) {
 func TestMooneye_sprite_priority(t *testing.T) {
 	runRomTest(t, "Mooneye/sprite_priority.gb", 1000)
 }
+
+func TestMooneyeMbc1_bits_bank1(t *testing.T) {
+	runRomTest(t, "Mooneye/mbc1/bits_bank1.gb", 1000)
+}
+
+func TestMooneyeMbc1_bits_bank2(t *testing.T) {
+	runRomTest(t, "Mooneye/mbc1/bits_bank2.gb", 1000)
+}
+
+func TestMooneyeMbc1_bits_mode(t *testing.T) {
+	runRomTest(t, "Mooneye/mbc1/bits_mode.gb", 1000)
+}
+
+func TestMooneyeMbc1_bits_ramg(t *testing.T) {
+	runRomTest(t, "Mooneye/mbc1/bits_ramg.gb", 1000)
+}
+
+func TestMooneyeMbc1_ram_64kb(t *testing.T) {
+	runRomTest(t, "Mooneye/mbc1/ram_64kb.gb", 1000)
+}
+
+func TestMooneyeMbc1_ram_256kb(t *testing.T) {
+	runRomTest(t, "Mooneye/mbc1/ram_256kb.gb", 1000)
+}
+
+func TestMooneyeMbc1_rom_1Mb(t *testing.T) {
+	runRomTest(t, "Mooneye/mbc1/rom_1Mb.gb", 1000)
+}
+
+func TestMooneyeMbc1_rom_2Mb(t *testing.T) {
+	runRomTest(t, "Mooneye/mbc1/rom_2Mb.gb", 1000)
+}
+
+func TestMooneyeMbc1_rom_4Mb(t *testing.T) {
+	runRomTest(t, "Mooneye/mbc1/rom_4Mb.gb", 1000)
+}
+
+func TestMooneyeMbc1_rom_8Mb(t *testing.T) {
+	runRomTest(t, "Mooneye/mbc1/rom_8Mb.gb", 1000)
+}
+
+func TestMooneyeMbc1_rom_16Mb(t *testing.T) {
+	runRomTest(t, "Mooneye/mbc1/rom_16Mb.gb", 1000)
+}
+
+func TestMooneyeMbc1_rom_512Kb(t *testing.T) {
+	runRomTest(t, "Mooneye/mbc1/rom_512Kb.gb", 1000)
+}
+
+func TestMooneyeMbc5_rom_1Mb(t *testing.T) {
+	runRomTest(t, "Mooneye/mbc5/rom_1Mb.gb", 1000)
+}
+
+func TestMooneyeMbc5_rom_2Mb(t *testing.T) {
+	runRomTest(t, "Mooneye/mbc5/rom_2Mb.gb", 1000)
+}
+
+func TestMooneyeMbc5_rom_4Mb(t *testing.T) {
+	runRomTest(t, "Mooneye/mbc5/rom_4Mb.gb", 1000)
+}
+
+func TestMooneyeMbc5_rom_8Mb(t *testing.T) {
+	runRomTest(t, "Mooneye/mbc5/rom_8Mb.gb", 1000)
+}
+
+func TestMooneyeMbc5_rom_16Mb(t *testing.T) {
+	runRomTest(t, "Mooneye/mbc5/rom_16Mb.gb", 1000)
+}
+
+func TestMooneyeMbc5_rom_32Mb(t *testing.T) {
+	runRomTest(t, "Mooneye/mbc5/rom_32Mb.gb", 1000)
+}
+
+func TestMooneyeMbc5_rom_64Mb(t *testing.T) {
+	runRomTest(t, "Mooneye/mbc5/rom_64Mb.gb", 1000)
+}
+
+func TestMooneyeMbc5_rom_512Kb(t *testing.T) {
+	runRomTest(t, "Mooneye/mbc5/rom_512Kb.gb", 1000)
+}
