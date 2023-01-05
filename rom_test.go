@@ -96,6 +96,22 @@ func TestMooneye_sprite_priority(t *testing.T) {
 	runRomTest(t, "Mooneye/sprite_priority.gb", 1000)
 }
 
+func TestMooneyeTimer_div_write(t *testing.T) {
+	runRomTest(t, "Mooneye/timer/div_write.gb", 1000)
+}
+
+func TestMooneyeTimer_tim00(t *testing.T) {
+	runRomTest(t, "Mooneye/timer/tim00.gb", 1000)
+}
+
+func TestMooneyeTimer_tim10(t *testing.T) {
+	runRomTest(t, "Mooneye/timer/tim10.gb", 1000)
+}
+
+func TestMooneyeTimer_tim11(t *testing.T) {
+	runRomTest(t, "Mooneye/timer/tim11.gb", 1000)
+}
+
 func TestMooneyeMbc1_bits_bank1(t *testing.T) {
 	runRomTest(t, "Mooneye/mbc1/bits_bank1.gb", 1000)
 }

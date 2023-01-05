@@ -195,7 +195,7 @@ func (cons *Console) writeIO(addr uint16, value uint8) {
 		cons.Input.FrontState.DirectionSelector = value&(1<<4) == 0
 		cons.Input.FrontState.ActionSelector = value&(1<<5) == 0
 	case addr == 0xFF04:
-		cons.timer.DIV = 0
+		cons.timer.reset()
 		return
 	case addr == 0xFF05:
 		cons.timer.TIMA = value

@@ -17,6 +17,13 @@ func MakeTimer(c *Console) *Timer {
 	return t
 }
 
+func (t *Timer) reset() {
+	t.divCounter = 0
+	t.timaCounter = 0
+	t.DIV = 0
+	t.TIMA = t.TMA
+}
+
 func (t *Timer) updateDiv(ticks int) {
 	t.divCounter += ticks * 4
 	for t.divCounter >= DIV_THRESHOLD {
