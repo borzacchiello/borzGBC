@@ -157,7 +157,7 @@ func TestMooneyeMbc1_rom_16Mb(t *testing.T) {
 }
 
 func TestMooneyeMbc1_rom_512Kb(t *testing.T) {
-	runRomTest(t, "Mooneye/mbc1/rom_512Kb.gb", 1000)
+	runRomTest(t, "Mooneye/mbc1/rom_512kb.gb", 1000)
 }
 
 func TestMooneyeMbc5_rom_1Mb(t *testing.T) {
@@ -189,5 +189,5 @@ func TestMooneyeMbc5_rom_64Mb(t *testing.T) {
 }
 
 func TestMooneyeMbc5_rom_512Kb(t *testing.T) {
-	runRomTest(t, "Mooneye/mbc5/rom_512Kb.gb", 1000)
+	runRomTest(t, "Mooneye/mbc5/rom_512kb.gb", 1000)
 }
