@@ -738,6 +738,8 @@ func (ppu *Ppu) Tick(ticks int) {
 
 			if ppu.LY == 154 {
 				ppu.LY = 0
+				ppu.checkCoincidenceLY_LYC()
+
 				ppu.WindowScanline = 0
 				ppu.setMode(ACCESS_OAM)
 				if ppu.oamInterrupt() {

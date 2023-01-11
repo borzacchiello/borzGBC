@@ -14,7 +14,7 @@ func main() {
 		return
 	}
 
-	pl, err := mediaplugin.MakeSDLPlugin(3)
+	pl, err := mediaplugin.MakeSDLPlugin( /* scaling factor */ 3)
 	if err != nil {
 		fmt.Printf("unable to create SDLPlugin: %s\n", err)
 		return
