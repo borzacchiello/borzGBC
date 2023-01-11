@@ -645,7 +645,7 @@ func (ppu *Ppu) writeScanline() {
 func (ppu *Ppu) checkCoincidenceLY_LYC() {
 	ppu.setCoincidenceFlag(ppu.LYC == ppu.LY)
 
-	if ppu.coincidenceFlag() && ppu.coincidenceInterrupt() {
+	if ppu.DisplayEnabled() && ppu.coincidenceFlag() && ppu.coincidenceInterrupt() {
 		ppu.GBC.CPU.SetInterrupt(InterruptLCDStat.Mask)
 	}
 }
@@ -655,13 +655,10 @@ func (ppu *Ppu) Tick(ticks int) {
 	if ppu.GBC.DoubleSpeedMode {
 		clocks = ticks * 2
 	}
-	ppu.CycleCount += clocks
 
-	if !ppu.DisplayEnabled() {
-		if ppu.CycleCount >= 70224 {
-			ppu.CycleCount %= 70224
-		}
-		return
+	ppu.CycleCount += clocks
+	if ppu.CycleCount >= 70224 {
+		ppu.CycleCount %= 70224
 	}
 
 	switch ppu.Mode {
@@ -676,8 +673,7 @@ func (ppu *Ppu) Tick(ticks int) {
 			ppu.setMode(HBLANK)
 
 			ppu.writeScanline()
-
-			if ppu.hblankInterrupt() {
+			if ppu.DisplayEnabled() && ppu.hblankInterrupt() {
 				ppu.GBC.CPU.SetInterrupt(InterruptLCDStat.Mask)
 			}
 		}
@@ -715,16 +711,18 @@ func (ppu *Ppu) Tick(ticks int) {
 			if ppu.LY == 144 {
 				ppu.setMode(VBLANK)
 
-				ppu.Driver.CommitScreen()
 				ppu.FrameCount += 1
+				if ppu.DisplayEnabled() {
+					ppu.Driver.CommitScreen()
 
-				ppu.GBC.CPU.SetInterrupt(InterruptVBlank.Mask)
-				if ppu.vblankInterrupt() {
-					ppu.GBC.CPU.SetInterrupt(InterruptLCDStat.Mask)
+					ppu.GBC.CPU.SetInterrupt(InterruptVBlank.Mask)
+					if ppu.vblankInterrupt() {
+						ppu.GBC.CPU.SetInterrupt(InterruptLCDStat.Mask)
+					}
 				}
 			} else {
 				ppu.setMode(ACCESS_OAM)
-				if ppu.oamInterrupt() {
+				if ppu.DisplayEnabled() && ppu.oamInterrupt() {
 					ppu.GBC.CPU.SetInterrupt(InterruptLCDStat.Mask)
 				}
 			}
@@ -738,11 +736,11 @@ func (ppu *Ppu) Tick(ticks int) {
 
 			if ppu.LY == 154 {
 				ppu.LY = 0
+				ppu.WindowScanline = 0
 				ppu.checkCoincidenceLY_LYC()
 
-				ppu.WindowScanline = 0
 				ppu.setMode(ACCESS_OAM)
-				if ppu.oamInterrupt() {
+				if ppu.DisplayEnabled() && ppu.oamInterrupt() {
 					ppu.GBC.CPU.SetInterrupt(InterruptLCDStat.Mask)
 				}
 			}
