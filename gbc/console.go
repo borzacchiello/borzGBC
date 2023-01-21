@@ -24,6 +24,7 @@ type Console struct {
 	Cart  *Cart
 	CPU   *z80cpu.Z80Cpu
 	PPU   *Ppu
+	DMA   *Dma
 	timer *Timer
 	Input *Joypad
 
@@ -40,8 +41,6 @@ type Console struct {
 
 	// CGB Registers and data
 	RamBank         uint8 // RAM bank @ 0xD000-0xDFFF
-	DmaSrc          uint16
-	DmaDst          uint16
 	SpeedSwitch     uint8
 	DoubleSpeedMode bool
 
@@ -131,10 +130,7 @@ func (cons *Console) readIO(addr uint16) uint8 {
 		return 1
 	case addr == 0xFF55:
 		// CGB Only Register
-		if cons.PPU.PendingHblankDma {
-			return uint8((cons.PPU.PendingHblankDmaLen-1)/16) | 0x80
-		}
-		return 0xFF
+		return cons.DMA.HdmaControl
 	case addr == 0xFF69:
 		// CGB Only Register
 		return cons.PPU.ReadCRamBg()
@@ -166,26 +162,6 @@ func (cons *Console) dmaTransfer(value uint8) {
 		to := uint16(0xFE00) + uint16(i)
 
 		cons.Write(to, cons.Read(from))
-	}
-}
-
-func (cons *Console) cgbDmaTransfer(value uint8) {
-	if (value>>7)&1 == 0 {
-		cons.PPU.PendingHblankDma = false
-
-		src := cons.DmaSrc & 0xFFF0
-		dst := cons.DmaDst&0x1FF0 | 0x8000
-		len := (uint16(value&0x7F) + 1) * 16
-
-		for i := uint16(0); i < len; i++ {
-			cons.Write(dst+i, cons.Read(src+i))
-		}
-	} else {
-		// HBLANK transfer
-		cons.PPU.PendingHblankDma = true
-		cons.PPU.PendingHblankDmaLen = (uint16(value&0x7F) + 1) * 16
-		cons.PPU.PendingHblankDmaSrc = cons.DmaSrc & 0xFFF0
-		cons.PPU.PendingHblankDmaDst = cons.DmaDst&0x1FF0 | 0x8000
 	}
 }
 
@@ -294,27 +270,24 @@ func (cons *Console) writeIO(addr uint16, value uint8) {
 		return
 	case addr == 0xFF51:
 		// CGB Only Register
-		cons.DmaSrc &= 0xFF
-		cons.DmaSrc |= uint16(value) << 8
+		cons.DMA.HdmaSrcHi = value
 		return
 	case addr == 0xFF52:
 		// CGB Only Register
-		cons.DmaSrc &= 0xFF00
-		cons.DmaSrc |= uint16(value)
+		cons.DMA.HdmaSrcLo = value & 0xF0
 		return
 	case addr == 0xFF53:
 		// CGB Only Register
-		cons.DmaDst &= 0xFF
-		cons.DmaDst |= uint16(value) << 8
+		cons.DMA.HdmaDstHi = value & 0x1F
 		return
 	case addr == 0xFF54:
 		// CGB Only Register
-		cons.DmaDst &= 0xFF00
-		cons.DmaDst |= uint16(value)
+		cons.DMA.HdmaDstLo = value & 0xF0
 		return
 	case addr == 0xFF55:
 		// CGB Only Register
-		cons.cgbDmaTransfer(value)
+		cons.DMA.HdmaControl = value
+		cons.DMA.HdmaWritten = true
 		return
 	case addr == 0xFF68:
 		// CGB Only Register
@@ -528,6 +501,7 @@ func MakeConsole(rom_filepath string, videoDriver VideoDriver) (*Console, error)
 		DoubleSpeedMode: false,
 		Verbose:         false,
 	}
+	res.DMA = MakeDma(res)
 	res.PPU = MakePpu(res, videoDriver)
 	res.CPU = z80cpu.MakeZ80Cpu(res)
 	res.Input = MakeJoypad(res)
@@ -557,6 +531,16 @@ func (cons *Console) Step() int {
 	totTicks := 0
 	for cons.PPU.FrameCount == prevFrame {
 
+		if !cons.CPU.IsHalted {
+			for cons.DMA.HdmaInProgress() {
+				// The CPU is busy performing the HDMA
+				cons.DMA.Tick(1)
+				cons.timer.Tick(1)
+				cons.PPU.Tick(1)
+				totTicks += 1
+			}
+		}
+
 		if cons.PrintDebug {
 			var cpu *z80cpu.Z80Cpu = cons.CPU
 			_, disas_str := cons.CPU.Disas.DisassembleOneFromCPU(cons.CPU)
@@ -576,6 +560,7 @@ func (cons *Console) Step() int {
 		}
 
 		cons.timer.Tick(cpuTicks)
+		cons.DMA.Tick(cpuTicks)
 		cons.PPU.Tick(cpuTicks)
 		cons.Input.Tick(cpuTicks)
 

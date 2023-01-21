@@ -98,12 +98,6 @@ type Ppu struct {
 	VRAMBank uint8
 	OamRAM   [0xA0]uint8
 
-	// Pending DMA
-	PendingHblankDmaLen uint16
-	PendingHblankDmaSrc uint16
-	PendingHblankDmaDst uint16
-	PendingHblankDma    bool
-
 	// CGB Palette RAM
 	CRAMBg         [0x40]uint8
 	CRAMBgAddr     uint8
@@ -129,6 +123,8 @@ type Ppu struct {
 	Mode       PpuMode
 	CycleCount int
 	FrameCount int
+
+	WasDisplayEnabled bool
 }
 
 // LCDC Values
@@ -656,6 +652,13 @@ func (ppu *Ppu) Tick(ticks int) {
 		clocks = ticks * 2
 	}
 
+	if ppu.WasDisplayEnabled && !ppu.DisplayEnabled() {
+		ppu.LY = 0
+		ppu.Mode = HBLANK
+		ppu.GBC.DMA.SignalHdma()
+	}
+	ppu.WasDisplayEnabled = ppu.DisplayEnabled()
+
 	ppu.CycleCount += clocks
 	if ppu.CycleCount >= 70224 {
 		ppu.CycleCount %= 70224
@@ -671,6 +674,7 @@ func (ppu *Ppu) Tick(ticks int) {
 		if ppu.CycleCount >= CLOCKS_ACCESS_VRAM {
 			ppu.CycleCount %= CLOCKS_ACCESS_VRAM
 			ppu.setMode(HBLANK)
+			ppu.GBC.DMA.SignalHdma()
 
 			ppu.writeScanline()
 			if ppu.DisplayEnabled() && ppu.hblankInterrupt() {
@@ -686,26 +690,6 @@ func (ppu *Ppu) Tick(ticks int) {
 
 			if ppu.WX <= 166 {
 				ppu.WindowScanline += 1
-			}
-
-			if ppu.PendingHblankDma {
-				src := ppu.PendingHblankDmaSrc
-				dst := ppu.PendingHblankDmaDst
-				len := uint16(16)
-				if len > ppu.PendingHblankDmaLen {
-					len = ppu.PendingHblankDmaLen
-				}
-
-				for i := uint16(0); i < len; i++ {
-					ppu.GBC.Write(dst+i, ppu.GBC.Read(src+i))
-				}
-				ppu.PendingHblankDmaLen -= len
-				if ppu.PendingHblankDmaLen == 0 {
-					ppu.PendingHblankDma = false
-				} else {
-					ppu.PendingHblankDmaSrc += 16
-					ppu.PendingHblankDmaDst += 16
-				}
 			}
 
 			if ppu.LY == 144 {
