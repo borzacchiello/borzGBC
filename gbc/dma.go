@@ -102,9 +102,9 @@ func (dma *Dma) ExecuteHdma() {
 	dma.HdmaBytesToCopy -= len
 
 	for i := 0; i < len; i++ {
-		if dma.GBC.PPU.Mode != ACCESS_VRAM {
-			dma.GBC.Write(dst, dma.DmaRead(src))
-		}
+		// AFAIK it should be guarded by "dma.GBC.PPU.Mode != ACCESS_VRAM"
+		// but some same games do not work...
+		dma.GBC.Write(dst, dma.DmaRead(src))
 
 		dst = (dst + 1) & 0x9FFF
 		src += 1

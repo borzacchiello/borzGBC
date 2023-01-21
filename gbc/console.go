@@ -534,9 +534,9 @@ func (cons *Console) Step() int {
 		if !cons.CPU.IsHalted {
 			for cons.DMA.HdmaInProgress() {
 				// The CPU is busy performing the HDMA
+				cons.PPU.Tick(1)
 				cons.DMA.Tick(1)
 				cons.timer.Tick(1)
-				cons.PPU.Tick(1)
 				totTicks += 1
 			}
 		}
@@ -559,9 +559,9 @@ func (cons *Console) Step() int {
 			}
 		}
 
-		cons.timer.Tick(cpuTicks)
-		cons.DMA.Tick(cpuTicks)
 		cons.PPU.Tick(cpuTicks)
+		cons.DMA.Tick(cpuTicks)
+		cons.timer.Tick(cpuTicks)
 		cons.Input.Tick(cpuTicks)
 
 		if cons.dmaCycles > 0 {
