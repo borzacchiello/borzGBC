@@ -18,6 +18,9 @@ const (
 type Dma struct {
 	GBC *Console
 
+	GbDmaCycles int
+	GbDmaValue  uint8
+
 	HdmaWritten     bool
 	HdmaState       DmaState
 	HdmaType        DmaType
@@ -150,5 +153,15 @@ func (dma *Dma) Step() {
 func (dma *Dma) Tick(ticks int) {
 	for i := 0; i < ticks; i++ {
 		dma.Step()
+	}
+
+	// GB DMA
+	if dma.GbDmaCycles > 0 {
+		// Process DMA
+		dma.GbDmaCycles -= ticks * 4
+		if dma.GbDmaCycles <= 0 {
+			dma.GbDmaCycles = 0
+			dma.GBC.dmaTransfer(dma.GbDmaValue)
+		}
 	}
 }

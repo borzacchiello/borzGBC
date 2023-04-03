@@ -191,3 +191,16 @@ func TestMooneyeMbc5_rom_64Mb(t *testing.T) {
 func TestMooneyeMbc5_rom_512Kb(t *testing.T) {
 	runRomTest(t, "Mooneye/mbc5/rom_512kb.gb", 1000)
 }
+
+func TestMooneyeIntr_1_2(t *testing.T) {
+	runRomTest(t, "Mooneye/interrupts/intr_1_2_timing-GS.gb", 1000)
+}
+
+func TestMooneyeIntr_2_0(t *testing.T) {
+	runRomTest(t, "Mooneye/interrupts/intr_2_0_timing.gb", 1000)
+}
+
+func TestMooneyeIntrStatIrq(t *testing.T) {
+	// This fails, but it proceeds further with respect to the previous version
+	runRomTest(t, "Mooneye/interrupts/stat_irq_blocking.gb", 1000)
+}

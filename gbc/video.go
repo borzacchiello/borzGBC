@@ -124,7 +124,8 @@ type Ppu struct {
 	CycleCount int
 	FrameCount int
 
-	WasDisplayEnabled bool
+	wasDisplayEnabled         bool
+	wasModeInterruptTriggered bool
 }
 
 // LCDC Values
@@ -652,12 +653,12 @@ func (ppu *Ppu) Tick(ticks int) {
 		clocks = ticks * 2
 	}
 
-	if ppu.WasDisplayEnabled && !ppu.DisplayEnabled() {
+	if ppu.wasDisplayEnabled && !ppu.DisplayEnabled() {
 		ppu.LY = 0
 		ppu.Mode = HBLANK
 		ppu.GBC.DMA.SignalHdma()
 	}
-	ppu.WasDisplayEnabled = ppu.DisplayEnabled()
+	ppu.wasDisplayEnabled = ppu.DisplayEnabled()
 
 	ppu.CycleCount += clocks
 	if ppu.CycleCount >= 70224 {
@@ -666,6 +667,10 @@ func (ppu *Ppu) Tick(ticks int) {
 
 	switch ppu.Mode {
 	case ACCESS_OAM:
+		if !ppu.wasModeInterruptTriggered && ppu.DisplayEnabled() && ppu.oamInterrupt() {
+			ppu.wasModeInterruptTriggered = true
+			ppu.GBC.CPU.SetInterrupt(InterruptLCDStat.Mask)
+		}
 		if ppu.CycleCount >= CLOCKS_ACCESS_OAM {
 			ppu.CycleCount %= CLOCKS_ACCESS_OAM
 			ppu.setMode(ACCESS_VRAM)
@@ -677,11 +682,17 @@ func (ppu *Ppu) Tick(ticks int) {
 			ppu.GBC.DMA.SignalHdma()
 
 			ppu.writeScanline()
+			ppu.wasModeInterruptTriggered = false
 			if ppu.DisplayEnabled() && ppu.hblankInterrupt() {
+				ppu.wasModeInterruptTriggered = true
 				ppu.GBC.CPU.SetInterrupt(InterruptLCDStat.Mask)
 			}
 		}
 	case HBLANK:
+		if !ppu.wasModeInterruptTriggered && ppu.DisplayEnabled() && ppu.hblankInterrupt() {
+			ppu.wasModeInterruptTriggered = true
+			ppu.GBC.CPU.SetInterrupt(InterruptLCDStat.Mask)
+		}
 		if ppu.CycleCount >= CLOCKS_HBLANK {
 			ppu.CycleCount %= CLOCKS_HBLANK
 
@@ -700,7 +711,9 @@ func (ppu *Ppu) Tick(ticks int) {
 					ppu.Driver.CommitScreen()
 
 					ppu.GBC.CPU.SetInterrupt(InterruptVBlank.Mask)
+					ppu.wasModeInterruptTriggered = false
 					if ppu.vblankInterrupt() {
+						ppu.wasModeInterruptTriggered = true
 						ppu.GBC.CPU.SetInterrupt(InterruptLCDStat.Mask)
 					}
 				}
@@ -712,6 +725,10 @@ func (ppu *Ppu) Tick(ticks int) {
 			}
 		}
 	case VBLANK:
+		if !ppu.wasModeInterruptTriggered && ppu.DisplayEnabled() && ppu.vblankInterrupt() {
+			ppu.wasModeInterruptTriggered = true
+			ppu.GBC.CPU.SetInterrupt(InterruptLCDStat.Mask)
+		}
 		if ppu.CycleCount >= CLOCKS_VBLANK {
 			ppu.CycleCount %= CLOCKS_VBLANK
 
@@ -724,7 +741,9 @@ func (ppu *Ppu) Tick(ticks int) {
 				ppu.checkCoincidenceLY_LYC()
 
 				ppu.setMode(ACCESS_OAM)
+				ppu.wasModeInterruptTriggered = false
 				if ppu.DisplayEnabled() && ppu.oamInterrupt() {
+					ppu.wasModeInterruptTriggered = true
 					ppu.GBC.CPU.SetInterrupt(InterruptLCDStat.Mask)
 				}
 			}

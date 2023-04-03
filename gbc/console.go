@@ -35,10 +35,6 @@ type Console struct {
 	HighRAM [0x80]byte
 	WorkRAM [8][0x1000]byte
 
-	// DMA
-	dmaCycles int
-	dmaValue  uint8
-
 	// CGB Registers and data
 	RamBank         uint8 // RAM bank @ 0xD000-0xDFFF
 	SpeedSwitch     uint8
@@ -93,7 +89,7 @@ func (cons *Console) readIO(addr uint16) uint8 {
 	case addr == 0xFF40:
 		return cons.PPU.LCDC
 	case addr == 0xFF41:
-		return cons.PPU.STAT
+		return cons.PPU.STAT | 0x80
 	case addr == 0xFF42:
 		return cons.PPU.SCY
 	case addr == 0xFF43:
@@ -103,7 +99,7 @@ func (cons *Console) readIO(addr uint16) uint8 {
 	case addr == 0xFF45:
 		return cons.PPU.LYC
 	case addr == 0xFF46:
-		return cons.dmaValue
+		return cons.DMA.GbDmaValue
 	case addr == 0xFF47:
 		return cons.PPU.BGP
 	case addr == 0xFF48:
@@ -228,8 +224,8 @@ func (cons *Console) writeIO(addr uint16, value uint8) {
 		cons.PPU.LYC = value
 		return
 	case addr == 0xFF46:
-		cons.dmaCycles = 648
-		cons.dmaValue = value
+		cons.DMA.GbDmaCycles = 648
+		cons.DMA.GbDmaValue = value
 		return
 	case addr == 0xFF47:
 		cons.PPU.BGP = value
@@ -563,15 +559,6 @@ func (cons *Console) Step() int {
 		cons.DMA.Tick(cpuTicks)
 		cons.timer.Tick(cpuTicks)
 		cons.Input.Tick(cpuTicks)
-
-		if cons.dmaCycles > 0 {
-			// Process DMA
-			cons.dmaCycles -= cpuTicks * 4
-			if cons.dmaCycles <= 0 {
-				cons.dmaCycles = 0
-				cons.dmaTransfer(cons.dmaValue)
-			}
-		}
 
 		totTicks += cpuTicks
 		prevTicks = cpuTicks
