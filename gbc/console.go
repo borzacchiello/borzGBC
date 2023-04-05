@@ -227,10 +227,8 @@ func (cons *Console) writeIO(addr uint16, value uint8) {
 		cons.SpeedSwitch = (cons.SpeedSwitch & 0x80) | (value & 1)
 	case addr == 0xFF4F:
 		// CGB Only Register
-		if value == 0 {
-			cons.PPU.VRAMBank = 0
-		} else {
-			cons.PPU.VRAMBank = 1
+		if cons.DMA.HdmaState == DMA_STATE_INACTIVE {
+			cons.PPU.VRAMBank = value & 1
 		}
 	case addr == 0xFF50:
 		if value != 0 {
@@ -552,7 +550,9 @@ func (cons *Console) GetBackgroundMapStr() string {
 	for y := uint16(0); y < 32; y++ {
 		out += fmt.Sprintf("  %02x: ", y)
 		for x := uint16(0); x < 32; x++ {
-			out += fmt.Sprintf("%02x ", cons.Read(base+x+y*32))
+			v1 := cons.PPU.VRAM[0][base+x+y*32-0x8000]
+			v2 := cons.PPU.VRAM[1][base+x+y*32-0x8000]
+			out += fmt.Sprintf("%02x:%02x ", v1, v2)
 		}
 		out += "\n"
 	}
