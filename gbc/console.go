@@ -32,6 +32,7 @@ type Console struct {
 	CPUFreq int
 
 	// Memory
+	IOMem   [256]byte
 	HighRAM [0x80]byte
 	WorkRAM [8][0x1000]byte
 
@@ -64,28 +65,28 @@ func (cons *Console) readIO(addr uint16) uint8 {
 		return cons.CPU.IF
 	case 0xFF10 <= addr && addr <= 0xFF14:
 		// TODO: Audio - Channel 1: Tone & Sweep
-		return 0xFF
+		return cons.IOMem[addr&0xFF]
 	case 0xFF16 <= addr && addr <= 0xFF19:
 		// TODO: Audio - Channel 2: Tone
-		return 0xFF
+		return cons.IOMem[addr&0xFF]
 	case 0xFF1A <= addr && addr <= 0xFF1F:
 		// TODO: Audio - Channel 3: Wave Output
-		return 0xFF
+		return cons.IOMem[addr&0xFF]
 	case 0xFF20 <= addr && addr <= 0xFF23:
 		// TODO: Audio - Channel 4: Noise
-		return 0xFF
+		return cons.IOMem[addr&0xFF]
 	case addr == 0xFF24:
 		// TODO: Audio - Channel control/ON-OFF/Volume
 		return 0
 	case addr == 0xFF25:
 		// TODO: Audio - Selection of sound output terminal
-		return 0xFF
+		return cons.IOMem[addr&0xFF]
 	case addr == 0xFF26:
 		// TODO: Audio - Sound on/off
 		return 0
 	case 0xFF30 <= addr && addr <= 0xFF3F:
 		// TODO: Audio - Wave pattern RAM
-		return 0xFF
+		return cons.IOMem[addr&0xFF]
 	case addr == 0xFF40:
 		return cons.PPU.LCDC
 	case addr == 0xFF41:
@@ -147,7 +148,7 @@ func (cons *Console) readIO(addr uint16) uint8 {
 			fmt.Printf("Unhandled IO Read @ %04x\n", addr)
 		}
 	}
-	return 0xFF
+	return cons.IOMem[addr&0xFF]
 }
 
 func (cons *Console) dmaTransfer(value uint8) {
@@ -162,93 +163,68 @@ func (cons *Console) dmaTransfer(value uint8) {
 }
 
 func (cons *Console) writeIO(addr uint16, value uint8) {
+	cons.IOMem[addr&0xFF] = value
 	switch {
 	case addr == 0xFF00:
 		cons.Input.FrontState.DirectionSelector = value&(1<<4) == 0
 		cons.Input.FrontState.ActionSelector = value&(1<<5) == 0
 	case addr == 0xFF04:
 		cons.timer.reset()
-		return
 	case addr == 0xFF05:
 		cons.timer.TIMA = value
-		return
 	case addr == 0xFF06:
 		cons.timer.TMA = value
-		return
 	case addr == 0xFF07:
 		cons.timer.TAC = value
-		return
 	case addr == 0xFF0F:
 		cons.CPU.IF = value
-		return
 	case 0xFF10 <= addr && addr <= 0xFF14:
 		// TODO: Audio - Channel 1: Tone & Sweep
-		return
 	case 0xFF16 <= addr && addr <= 0xFF19:
 		// TODO: Audio - Channel 2: Tone
-		return
 	case 0xFF1A <= addr && addr <= 0xFF1F:
 		// TODO: Audio - Channel 3: Wave Output
-		return
 	case 0xFF20 <= addr && addr <= 0xFF23:
 		// TODO: Audio - Channel 4: Noise
-		return
 	case addr == 0xFF24:
 		// TODO: Audio - Channel control/ON-OFF/Volume
-		return
 	case addr == 0xFF25:
 		// TODO: Audio - Selection of sound output terminal
-		return
 	case addr == 0xFF26:
 		// TODO: Audio - Sound on/off
-		return
 	case 0xFF30 <= addr && addr <= 0xFF3F:
 		// TODO: Audio - Wave pattern RAM
-		return
 	case addr == 0xFF40:
 		cons.PPU.LCDC = value
-		return
 	case addr == 0xFF41:
 		cons.PPU.STAT = value
-		return
 	case addr == 0xFF42:
 		cons.PPU.SCY = value
-		return
 	case addr == 0xFF43:
 		cons.PPU.SCX = value
-		return
 	case addr == 0xFF44:
 		cons.PPU.LY = 0
-		return
 	case addr == 0xFF45:
 		cons.PPU.LYC = value
-		return
 	case addr == 0xFF46:
 		cons.DMA.GbDmaCycles = 648
 		cons.DMA.GbDmaValue = value
-		return
 	case addr == 0xFF47:
 		cons.PPU.BGP = value
-		return
 	case addr == 0xFF48:
 		cons.PPU.OBP0 = value
-		return
 	case addr == 0xFF49:
 		cons.PPU.OBP1 = value
-		return
 	case addr == 0xFF4A:
 		cons.PPU.WY = value
-		return
 	case addr == 0xFF4B:
 		cons.PPU.WX = value
 		if cons.PPU.WX < 7 {
 			cons.PPU.WX = 7
 		}
-		return
 	case addr == 0xFF4D:
 		// CGB Only Register
 		cons.SpeedSwitch = (cons.SpeedSwitch & 0x80) | (value & 1)
-		return
 	case addr == 0xFF4F:
 		// CGB Only Register
 		if value == 0 {
@@ -256,61 +232,48 @@ func (cons *Console) writeIO(addr uint16, value uint8) {
 		} else {
 			cons.PPU.VRAMBank = 1
 		}
-		return
 	case addr == 0xFF50:
 		if value != 0 {
 			cons.InBootROM = false
 		} else {
 			cons.InBootROM = true
 		}
-		return
 	case addr == 0xFF51:
 		// CGB Only Register
 		cons.DMA.HdmaSrcHi = value
-		return
 	case addr == 0xFF52:
 		// CGB Only Register
 		cons.DMA.HdmaSrcLo = value & 0xF0
-		return
 	case addr == 0xFF53:
 		// CGB Only Register
 		cons.DMA.HdmaDstHi = value & 0x1F
-		return
 	case addr == 0xFF54:
 		// CGB Only Register
 		cons.DMA.HdmaDstLo = value & 0xF0
-		return
 	case addr == 0xFF55:
 		// CGB Only Register
 		cons.DMA.HdmaControl = value
 		cons.DMA.HdmaWritten = true
-		return
 	case addr == 0xFF68:
 		// CGB Only Register
 		cons.PPU.SetCRamBgAddr(value)
-		return
 	case addr == 0xFF69:
 		// CGB Only Register
 		cons.PPU.WriteCRamBg(value)
-		return
 	case addr == 0xFF6A:
 		// CGB Only Register
 		cons.PPU.SetCRAMObjAddr(value)
-		return
 	case addr == 0xFF6B:
 		// CGB Only Register
 		cons.PPU.WriteCRamObj(value)
-		return
 	case addr == 0xFF6C:
 		// CGB Only Register
-		return
 	case addr == 0xFF70:
 		// CGB Only Register
 		cons.RamBank = value & 7
 		if cons.RamBank == 0 {
 			cons.RamBank = 1
 		}
-		return
 	default:
 		if cons.Verbose {
 			fmt.Printf("Unhandled IO Write @ %04x <- %02x\n", addr, value)
@@ -573,4 +536,25 @@ func (cons *Console) GetMs(ticks int) int {
 		res /= 2
 	}
 	return res
+}
+
+func (cons *Console) GetBackgroundMapStr() string {
+	out := "Current Background Map "
+	if cons.PPU.BgTileMapDisplay() {
+		out += "ONE @ 0x9C00:\n"
+	} else {
+		out += "ZERO @ 0x9800:\n"
+	}
+	base := TILE_MAP_ZERO_ADDRESS
+	if cons.PPU.BgTileMapDisplay() {
+		base = TILE_MAP_ONE_ADDRESS
+	}
+	for y := uint16(0); y < 32; y++ {
+		out += fmt.Sprintf("  %02x: ", y)
+		for x := uint16(0); x < 32; x++ {
+			out += fmt.Sprintf("%02x ", cons.Read(base+x+y*32))
+		}
+		out += "\n"
+	}
+	return out
 }

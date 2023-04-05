@@ -141,6 +141,11 @@ func (pl *SDLPlugin) Run(console *gbc.Console) error {
 						pl.slowMode = !pl.slowMode
 						pl.setTitle()
 					}
+				case sdl.K_b:
+					if t.State == sdl.PRESSED {
+						bgmap := console.GetBackgroundMapStr()
+						fmt.Println(bgmap)
+					}
 
 				// GB Keys
 				case sdl.K_z:
