@@ -162,6 +162,8 @@ func (ppu *Ppu) BgEnabled() bool {
 }
 
 // STAT Values
+//
+//lint:ignore U1000 Ignore
 func (ppu *Ppu) modeFlag() uint8 {
 	return ppu.STAT & 3
 }
