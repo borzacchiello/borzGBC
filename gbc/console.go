@@ -477,6 +477,7 @@ func (cons *Console) Destroy() error {
 	if err := storeSav(cons.Cart); err != nil {
 		return err
 	}
+	cons.Cart.Map.MapperClose()
 	return nil
 }
 

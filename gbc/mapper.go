@@ -1,10 +1,14 @@
 package gbc
 
-import "fmt"
+import (
+	"fmt"
+	"os"
+)
 
 type Mapper interface {
 	MapperRead(addr uint16) uint8
 	MapperWrite(addr uint16, value uint8)
+	MapperClose()
 }
 
 func calculateMask(value uint) uint {
@@ -26,6 +30,8 @@ func calculateMask(value uint) uint {
 type ROMOnlyMapper struct {
 	cart *Cart
 }
+
+func (m ROMOnlyMapper) MapperClose() {}
 
 func (m ROMOnlyMapper) MapperRead(addr uint16) uint8 {
 	bank_n := addr >> 14
@@ -58,6 +64,8 @@ func MakeMBC1Mapper(cart *Cart) *MBC1Mapper {
 		advBankingMode: false,
 	}
 }
+
+func (m *MBC1Mapper) MapperClose() {}
 
 func (m *MBC1Mapper) MapperRead(addr uint16) uint8 {
 	switch {
@@ -132,8 +140,10 @@ func (m *MBC1Mapper) MapperWrite(addr uint16, value uint8) {
 type MBC3Mapper struct {
 	cart *Cart
 
-	rtcMapped bool
-	rtcRegVal uint8
+	rtcMapped    bool
+	rtcRegVal    uint8
+	rtcLastLatch uint8
+	rtc          RTC
 
 	ramEnabled bool   // 0000 - 1FFF
 	rtcEnabled bool   // 0000 - 1FFF
@@ -142,12 +152,45 @@ type MBC3Mapper struct {
 }
 
 func MakeMBC3Mapper(cart *Cart) *MBC3Mapper {
-	return &MBC3Mapper{
+	res := &MBC3Mapper{
 		cart:       cart,
 		rtcMapped:  false,
 		ramEnabled: false,
 		romBank:    1,
 		ramBank:    0,
+		rtc:        MakeRTC(),
+	}
+	res.LoadRTC()
+	return res
+}
+
+func (m *MBC3Mapper) MapperClose() {
+	m.SaveRTC()
+}
+
+func (m *MBC3Mapper) SaveRTC() {
+	rtcFilename := m.cart.filepath + ".rtc"
+	data, err := m.rtc.Marshal()
+	if err != nil {
+		fmt.Printf("unable to store RTC: %s", err)
+		return
+	}
+
+	err = os.WriteFile(rtcFilename, data, 0644)
+	if err != nil {
+		fmt.Printf("unable to store RTC: %s", err)
+	}
+}
+
+func (m *MBC3Mapper) LoadRTC() {
+	rtcFilename := m.cart.filepath + ".rtc"
+	data, err := os.ReadFile(rtcFilename)
+	if err != nil {
+		return
+	}
+	err = m.rtc.UnMarshal(data)
+	if err != nil {
+		fmt.Printf("unable to load RTC: %s", err)
 	}
 }
 
@@ -167,8 +210,7 @@ func (m *MBC3Mapper) MapperRead(addr uint16) uint8 {
 			off := addr & 0x1FFF
 			return m.cart.RAMBanks[m.ramBank][off]
 		}
-		// FIXME: implement RTC
-		return 0
+		return m.rtc.GetReg(m.rtcRegVal)
 	}
 
 	fmt.Printf("Unexpected address in MBC5Mapper Read: 0x%04x\n", addr)
@@ -204,7 +246,10 @@ func (m *MBC3Mapper) MapperWrite(addr uint16, value uint8) {
 		}
 		return
 	case 0x6000 <= addr && addr <= 0x7FFF:
-		// FIXME: implement RTC
+		if m.rtcLastLatch == 0 && value == 1 {
+			m.rtc.SyncTime()
+		}
+		m.rtcLastLatch = value
 		return
 	case 0xA000 <= addr && addr <= 0xBFFF:
 		if !m.rtcMapped {
@@ -214,7 +259,7 @@ func (m *MBC3Mapper) MapperWrite(addr uint16, value uint8) {
 			off := addr & 0x1FFF
 			m.cart.RAMBanks[m.ramBank][off] = value
 		}
-		// FIXME: implement RTC
+		m.rtc.SetReg(m.rtcRegVal, value)
 		return
 	}
 
@@ -237,6 +282,8 @@ func MakeMBC5Mapper(cart *Cart) *MBC5Mapper {
 		ramBank:    0,
 	}
 }
+
+func (m *MBC5Mapper) MapperClose() {}
 
 func (m *MBC5Mapper) MapperRead(addr uint16) uint8 {
 	switch {
