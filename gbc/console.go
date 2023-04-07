@@ -20,10 +20,17 @@ var InterruptJoypad z80cpu.Z80Interrupt = z80cpu.Z80Interrupt{
 
 const GBCPU_FREQ = 4194304
 
+type MediaDriver interface {
+	NotifySample(l, r int8)
+	SetPixel(x, y int, color uint32)
+	CommitScreen()
+}
+
 type Console struct {
 	Cart  *Cart
 	CPU   *z80cpu.Z80Cpu
 	PPU   *Ppu
+	APU   *Apu
 	DMA   *Dma
 	timer *Timer
 	Input *Joypad
@@ -64,29 +71,29 @@ func (cons *Console) readIO(addr uint16) uint8 {
 	case addr == 0xFF0F:
 		return cons.CPU.IF
 	case 0xFF10 <= addr && addr <= 0xFF14:
-		// TODO: Audio - Channel 1: Tone & Sweep
-		return cons.IOMem[addr&0xFF]
+		// Audio - Channel 1: Tone & Sweep
+		return cons.APU.Read(addr)
 	case 0xFF16 <= addr && addr <= 0xFF19:
-		// TODO: Audio - Channel 2: Tone
-		return cons.IOMem[addr&0xFF]
+		// Audio - Channel 2: Tone
+		return cons.APU.Read(addr)
 	case 0xFF1A <= addr && addr <= 0xFF1F:
-		// TODO: Audio - Channel 3: Wave Output
-		return cons.IOMem[addr&0xFF]
+		// Audio - Channel 3: Wave Output
+		return cons.APU.Read(addr)
 	case 0xFF20 <= addr && addr <= 0xFF23:
-		// TODO: Audio - Channel 4: Noise
-		return cons.IOMem[addr&0xFF]
+		// Audio - Channel 4: Noise
+		return cons.APU.Read(addr)
 	case addr == 0xFF24:
-		// TODO: Audio - Channel control/ON-OFF/Volume
-		return 0
+		// Audio - Channel control/ON-OFF/Volume
+		return cons.APU.Read(addr)
 	case addr == 0xFF25:
-		// TODO: Audio - Selection of sound output terminal
-		return cons.IOMem[addr&0xFF]
+		// Audio - Selection of sound output terminal
+		return cons.APU.Read(addr)
 	case addr == 0xFF26:
-		// TODO: Audio - Sound on/off
-		return 0
+		// Audio - Sound on/off
+		return cons.APU.Read(addr)
 	case 0xFF30 <= addr && addr <= 0xFF3F:
-		// TODO: Audio - Wave pattern RAM
-		return cons.IOMem[addr&0xFF]
+		// Audio - Wave pattern RAM
+		return cons.APU.Read(addr)
 	case addr == 0xFF40:
 		return cons.PPU.LCDC
 	case addr == 0xFF41:
@@ -179,21 +186,28 @@ func (cons *Console) writeIO(addr uint16, value uint8) {
 	case addr == 0xFF0F:
 		cons.CPU.IF = value
 	case 0xFF10 <= addr && addr <= 0xFF14:
-		// TODO: Audio - Channel 1: Tone & Sweep
+		// Audio - Channel 1: Tone & Sweep
+		cons.APU.Write(addr, value)
 	case 0xFF16 <= addr && addr <= 0xFF19:
-		// TODO: Audio - Channel 2: Tone
+		// Audio - Channel 2: Tone
+		cons.APU.Write(addr, value)
 	case 0xFF1A <= addr && addr <= 0xFF1F:
-		// TODO: Audio - Channel 3: Wave Output
+		// Audio - Channel 3: Wave Output
+		cons.APU.Write(addr, value)
 	case 0xFF20 <= addr && addr <= 0xFF23:
-		// TODO: Audio - Channel 4: Noise
+		// Audio - Channel 4: Noise
+		cons.APU.Write(addr, value)
 	case addr == 0xFF24:
 		// TODO: Audio - Channel control/ON-OFF/Volume
 	case addr == 0xFF25:
-		// TODO: Audio - Selection of sound output terminal
+		// Audio - Selection of sound output terminal
+		cons.APU.Write(addr, value)
 	case addr == 0xFF26:
-		// TODO: Audio - Sound on/off
+		// Audio - Sound on/off
+		cons.APU.Write(addr, value)
 	case 0xFF30 <= addr && addr <= 0xFF3F:
-		// TODO: Audio - Wave pattern RAM
+		// Audio - Wave pattern RAM
+		cons.APU.Write(addr, value)
 	case addr == 0xFF40:
 		cons.PPU.LCDC = value
 	case addr == 0xFF41:
@@ -432,7 +446,7 @@ func storeSav(cart *Cart) error {
 	return nil
 }
 
-func MakeConsole(rom_filepath string, videoDriver VideoDriver) (*Console, error) {
+func MakeConsole(rom_filepath string, mediaDriver MediaDriver) (*Console, error) {
 	cart, err := LoadCartridge(rom_filepath)
 	if err != nil {
 		return nil, err
@@ -459,7 +473,8 @@ func MakeConsole(rom_filepath string, videoDriver VideoDriver) (*Console, error)
 		Verbose:         false,
 	}
 	res.DMA = MakeDma(res)
-	res.PPU = MakePpu(res, videoDriver)
+	res.PPU = MakePpu(res, mediaDriver)
+	res.APU = MakeApu(res, mediaDriver)
 	res.CPU = z80cpu.MakeZ80Cpu(res)
 	res.Input = MakeJoypad(res)
 	res.timer = MakeTimer(res)
@@ -493,6 +508,7 @@ func (cons *Console) Step() int {
 			for cons.DMA.HdmaInProgress() {
 				// The CPU is busy performing the HDMA
 				cons.PPU.Tick(1)
+				cons.APU.Tick(1)
 				cons.DMA.Tick(1)
 				cons.timer.Tick(1)
 				totTicks += 1
@@ -518,6 +534,7 @@ func (cons *Console) Step() int {
 		}
 
 		cons.PPU.Tick(cpuTicks)
+		cons.APU.Tick(cpuTicks)
 		cons.DMA.Tick(cpuTicks)
 		cons.timer.Tick(cpuTicks)
 		cons.Input.Tick(cpuTicks)

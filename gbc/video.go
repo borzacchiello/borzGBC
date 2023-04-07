@@ -38,11 +38,6 @@ const (
 	SPRITE_BYTES   = 4
 )
 
-type VideoDriver interface {
-	SetPixel(x, y int, color uint32)
-	CommitScreen()
-}
-
 type PixelInfo struct {
 	isNotTransparent bool
 	bgAttrBitNotSet  bool
@@ -91,7 +86,7 @@ func (sprite *Sprite) renderPriority() bool {
 }
 
 type Ppu struct {
-	Driver VideoDriver
+	Driver MediaDriver
 	GBC    *Console
 
 	VRAM     [2][0x2000]uint8
@@ -188,9 +183,9 @@ func (ppu *Ppu) coincidenceInterrupt() bool {
 	return (ppu.STAT>>6)&1 != 0
 }
 
-func MakePpu(GBC *Console, videoDriver VideoDriver) *Ppu {
+func MakePpu(GBC *Console, mediaDriver MediaDriver) *Ppu {
 	ppu := &Ppu{
-		Driver: videoDriver,
+		Driver: mediaDriver,
 		GBC:    GBC,
 		Mode:   ACCESS_OAM,
 	}

@@ -15,6 +15,11 @@ type SDLPlugin struct {
 	Width, Height int
 	Scale         int
 
+	AudioSpec      sdl.AudioSpec
+	AudioDevice    sdl.AudioDeviceID
+	SoundBuffer    []byte
+	SoundBufferIdx int
+
 	fastMode bool
 	slowMode bool
 }
@@ -48,12 +53,38 @@ func MakeSDLPlugin(scale int) (*SDLPlugin, error) {
 
 	pl.Renderer.SetDrawColor(0, 0, 0, 255)
 	pl.Renderer.Clear()
+
+	// Audio
+	want := sdl.AudioSpec{}
+	want.Freq = 44100
+	want.Format = sdl.AUDIO_S8
+	want.Channels = 2
+	want.Samples = 2048
+	pl.AudioDevice, err = sdl.OpenAudioDevice("", false, &want, &pl.AudioSpec, 0)
+	if err != nil {
+		return nil, err
+	}
+	pl.SoundBuffer = make([]byte, pl.AudioSpec.Samples*2)
+	sdl.PauseAudioDevice(pl.AudioDevice, false)
+
 	return pl, nil
+}
+
+func (pl *SDLPlugin) NotifySample(l, r int8) {
+	// fmt.Printf("adding sample: %d, %d\n", l, r)
+	if pl.SoundBufferIdx >= len(pl.SoundBuffer) {
+		pl.SoundBufferIdx = 0
+		sdl.QueueAudio(pl.AudioDevice, pl.SoundBuffer[:])
+	}
+	pl.SoundBuffer[pl.SoundBufferIdx] = byte(l)
+	pl.SoundBuffer[pl.SoundBufferIdx+1] = byte(r)
+	pl.SoundBufferIdx += 2
 }
 
 func (pl *SDLPlugin) Destroy() {
 	pl.Renderer.Destroy()
 	pl.Window.Destroy()
+	sdl.CloseAudioDevice(pl.AudioDevice)
 	sdl.Quit()
 }
 
@@ -111,7 +142,6 @@ func (pl *SDLPlugin) Run(console *gbc.Console) error {
 			switch t := event.(type) {
 			case *sdl.QuitEvent:
 				running = false
-				break
 			case *sdl.KeyboardEvent:
 				if t.Repeat != 0 {
 					break
@@ -120,7 +150,6 @@ func (pl *SDLPlugin) Run(console *gbc.Console) error {
 				switch keyCode {
 				case sdl.K_q:
 					running = false
-					break
 				case sdl.K_f:
 					if t.State == sdl.PRESSED {
 						console.CPUFreq = gbc.GBCPU_FREQ
@@ -140,6 +169,35 @@ func (pl *SDLPlugin) Run(console *gbc.Console) error {
 						pl.fastMode = false
 						pl.slowMode = !pl.slowMode
 						pl.setTitle()
+					}
+				case sdl.K_m:
+					if t.State == sdl.PRESSED {
+						console.APU.ToggleAudio()
+					}
+				case sdl.K_PLUS:
+					if t.State == sdl.PRESSED {
+						console.APU.IncreaseAudio()
+					}
+				case sdl.K_MINUS:
+					if t.State == sdl.PRESSED {
+						console.APU.DecreaseAudio()
+					}
+				// Debug Flags
+				case sdl.K_1:
+					if t.State == sdl.PRESSED {
+						console.APU.ToggleSoundChannel(1)
+					}
+				case sdl.K_2:
+					if t.State == sdl.PRESSED {
+						console.APU.ToggleSoundChannel(2)
+					}
+				case sdl.K_3:
+					if t.State == sdl.PRESSED {
+						console.APU.ToggleSoundChannel(3)
+					}
+				case sdl.K_4:
+					if t.State == sdl.PRESSED {
+						console.APU.ToggleSoundChannel(4)
 					}
 				case sdl.K_b:
 					if t.State == sdl.PRESSED {
@@ -172,10 +230,13 @@ func (pl *SDLPlugin) Run(console *gbc.Console) error {
 		elapsed := time.Since(start)
 		if int(elapsed.Milliseconds()) < console.GetMs(ticks) {
 			sdl.Delay(uint32(console.GetMs(ticks) - int(elapsed.Milliseconds())))
+			for sdl.GetQueuedAudioSize(pl.AudioDevice) > uint32(pl.AudioSpec.Freq/2) {
+				// Wait for audio buffer to process remaining data (if any)
+				sdl.Delay(100)
+			}
 		} else {
 			fmt.Println("Emulation is too slow")
 		}
 	}
-
 	return nil
 }

@@ -155,6 +155,7 @@ func MakeMBC3Mapper(cart *Cart) *MBC3Mapper {
 	res := &MBC3Mapper{
 		cart:       cart,
 		rtcMapped:  false,
+		rtcRegVal:  0x08,
 		ramEnabled: false,
 		romBank:    1,
 		ramBank:    0,
