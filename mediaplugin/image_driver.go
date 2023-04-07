@@ -46,6 +46,6 @@ func (d *ImageVideoDriver) SaveScreen(path string) {
 	png.Encode(f, d.FrontImg)
 }
 
-func (pl *ImageVideoDriver) NotifySample(l, r int8) {
+func (pl *ImageVideoDriver) NotifyAudioSample(l, r int8) {
 	// Just ignore audio
 }

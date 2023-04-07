@@ -70,7 +70,7 @@ func MakeSDLPlugin(scale int) (*SDLPlugin, error) {
 	return pl, nil
 }
 
-func (pl *SDLPlugin) NotifySample(l, r int8) {
+func (pl *SDLPlugin) NotifyAudioSample(l, r int8) {
 	// fmt.Printf("adding sample: %d, %d\n", l, r)
 	if pl.SoundBufferIdx >= len(pl.SoundBuffer) {
 		pl.SoundBufferIdx = 0

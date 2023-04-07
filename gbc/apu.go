@@ -192,7 +192,7 @@ func (a *Apu) Tick(cpuTicks int) {
 
 	// fmt.Printf("valL: %f, valR: %f\n", float64(valL)*a.lVol, float64(valR)*a.rVol)
 
-	a.mediaDriver.NotifySample(
+	a.mediaDriver.NotifyAudioSample(
 		int8(float64(valL)*a.lVol*a.GlobalVolume),
 		int8(float64(valR)*a.rVol*a.GlobalVolume))
 }

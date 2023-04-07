@@ -21,7 +21,7 @@ var InterruptJoypad z80cpu.Z80Interrupt = z80cpu.Z80Interrupt{
 const GBCPU_FREQ = 4194304
 
 type MediaDriver interface {
-	NotifySample(l, r int8)
+	NotifyAudioSample(l, r int8)
 	SetPixel(x, y int, color uint32)
 	CommitScreen()
 }
