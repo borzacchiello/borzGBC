@@ -28,6 +28,7 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"strings"
 )
 
 const (
@@ -106,7 +107,7 @@ type Channel struct {
 type Apu struct {
 	frontend     Frontend
 	GBC          *Console
-	GlobalVolume float64
+	globalVolume float64
 	playing      bool
 
 	memory      [256]byte
@@ -121,7 +122,7 @@ func MakeApu(GBC *Console, frontend Frontend) *Apu {
 	a := &Apu{}
 
 	a.GBC = GBC
-	a.GlobalVolume = 0.5
+	a.globalVolume = 0.5
 	a.playing = true
 	a.frontend = frontend
 	a.lVol = 1
@@ -150,19 +151,17 @@ func (a *Apu) ToggleAudio() {
 }
 
 func (a *Apu) IncreaseAudio() {
-	a.GlobalVolume += 0.05
-	if a.GlobalVolume > 1.0 {
-		a.GlobalVolume = 1
+	a.globalVolume += 0.05
+	if a.globalVolume > 1.0 {
+		a.globalVolume = 1
 	}
-	fmt.Printf("current volume: %.03f\n", a.GlobalVolume)
 }
 
 func (a *Apu) DecreaseAudio() {
-	a.GlobalVolume -= 0.05
-	if a.GlobalVolume < 0 {
-		a.GlobalVolume = 0
+	a.globalVolume -= 0.05
+	if a.globalVolume < 0 {
+		a.globalVolume = 0
 	}
-	fmt.Printf("current volume: %.03f\n", a.GlobalVolume)
 }
 
 func (a *Apu) Tick(cpuTicks int) {
@@ -193,8 +192,8 @@ func (a *Apu) Tick(cpuTicks int) {
 	// fmt.Printf("valL: %f, valR: %f\n", float64(valL)*a.lVol, float64(valR)*a.rVol)
 
 	a.frontend.NotifyAudioSample(
-		int8(float64(valL)*a.lVol*a.GlobalVolume),
-		int8(float64(valR)*a.rVol*a.GlobalVolume))
+		int8(float64(valL)*a.lVol*a.globalVolume),
+		int8(float64(valR)*a.rVol*a.globalVolume))
 }
 
 // Read returns a value from the APU.
@@ -393,8 +392,58 @@ func (a *Apu) ToggleSoundChannel(channel int) {
 	case 4:
 		a.chn4.debugOff = !a.chn4.debugOff
 	}
-	fmt.Printf("Toggled Audio: CH1: %t, CH2: %t, CH3: %t, CH4: %t\n",
-		a.chn1.debugOff, a.chn2.debugOff, a.chn3.debugOff, a.chn4.debugOff)
+}
+
+func (a *Apu) IsMuted() bool {
+	return !a.playing
+}
+
+func (a *Apu) IsChMuted(n int) bool {
+	switch n {
+	case 1:
+		return a.chn1.debugOff
+	case 2:
+		return a.chn2.debugOff
+	case 3:
+		return a.chn3.debugOff
+	case 4:
+		return a.chn4.debugOff
+	}
+	return false
+}
+
+func (a *Apu) GetVolumeString() string {
+	return fmt.Sprintf("volume: %02d / 100", int(a.globalVolume*100))
+}
+
+func (a *Apu) GetSoundChannelsString() string {
+	var builder strings.Builder
+
+	fmt.Fprintf(&builder, "ch1: ")
+	if a.chn1.debugOff {
+		fmt.Fprintf(&builder, "ON  ")
+	} else {
+		fmt.Fprintf(&builder, "OFF ")
+	}
+	fmt.Fprintf(&builder, "ch2: ")
+	if a.chn2.debugOff {
+		fmt.Fprintf(&builder, "ON  ")
+	} else {
+		fmt.Fprintf(&builder, "OFF ")
+	}
+	fmt.Fprintf(&builder, "ch3: ")
+	if a.chn3.debugOff {
+		fmt.Fprintf(&builder, "ON  ")
+	} else {
+		fmt.Fprintf(&builder, "OFF ")
+	}
+	fmt.Fprintf(&builder, "ch4: ")
+	if a.chn4.debugOff {
+		fmt.Fprintf(&builder, "ON  ")
+	} else {
+		fmt.Fprintf(&builder, "OFF ")
+	}
+	return builder.String()
 }
 
 // Extract some envelope variables from a byte.

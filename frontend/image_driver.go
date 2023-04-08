@@ -47,7 +47,7 @@ func (d *ImageVideoDriver) SaveScreen(path string) {
 }
 
 func (pl *ImageVideoDriver) NotifyAudioSample(l, r int8) {
-	// Just ignore audio
+	// Ignore audio
 }
 
 func (pl *ImageVideoDriver) GetCurrentImage() *image.RGBA {

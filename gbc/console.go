@@ -390,10 +390,10 @@ func loadBoot(cart *Cart) ([]byte, error) {
 		return nil, err
 	}
 
-	bootromDir := "bootRoms"
-	if _, err := os.Stat("bootRoms"); os.IsNotExist(err) {
-		bootromDir = fmt.Sprintf("%s/bootRoms", executableDir)
-		if _, err := os.Stat(fmt.Sprintf("%s/bootRoms", executableDir)); os.IsNotExist(err) {
+	bootromDir := "resources"
+	if _, err := os.Stat("resources"); os.IsNotExist(err) {
+		bootromDir = fmt.Sprintf("%s/resources", executableDir)
+		if _, err := os.Stat(fmt.Sprintf("%s/resources", executableDir)); os.IsNotExist(err) {
 			return nil, err
 		}
 	}

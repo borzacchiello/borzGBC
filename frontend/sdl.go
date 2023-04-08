@@ -6,6 +6,12 @@ import (
 	"time"
 
 	"github.com/veandco/go-sdl2/sdl"
+	"github.com/veandco/go-sdl2/ttf"
+)
+
+var (
+	SDL_WHITE = sdl.Color{R: 255, G: 255, B: 255, A: 0}
+	SDL_BLACK = sdl.Color{R: 0, G: 0, B: 0, A: 0}
 )
 
 type SDLPlugin struct {
@@ -14,6 +20,11 @@ type SDLPlugin struct {
 	surface       *sdl.Surface
 	width, height int
 	scale         int
+
+	pushNotificationCounter int
+	pushNotificationText    string
+	font                    *ttf.Font
+	charWidth, charHeight   int
 
 	audioSpec      sdl.AudioSpec
 	audioDevice    sdl.AudioDeviceID
@@ -67,6 +78,24 @@ func MakeSDLPlugin(scale int) (*SDLPlugin, error) {
 	pl.soundBuffer = make([]byte, pl.audioSpec.Samples*2)
 	sdl.PauseAudioDevice(pl.audioDevice, false)
 
+	// Fonts
+	err = ttf.Init()
+	if err != nil {
+		return nil, err
+	}
+	pl.font, err = ttf.OpenFont("resources/courier.ttf", 20)
+	if err != nil {
+		return nil, err
+	}
+	// deduce font size
+	s, err := pl.font.RenderUTF8Solid("A", SDL_WHITE)
+	if err != nil {
+		return nil, err
+	}
+	pl.charHeight = int(s.H)
+	pl.charWidth = int(s.W)
+	s.Free()
+
 	return pl, nil
 }
 
@@ -81,9 +110,21 @@ func (pl *SDLPlugin) NotifyAudioSample(l, r int8) {
 	pl.soundBufferIdx += 2
 }
 
+func (pl *SDLPlugin) DisplayNotification(text string) {
+	pl.pushNotificationCounter = 120
+	pl.pushNotificationText = text
+	if len(pl.pushNotificationText)*pl.charWidth-20 > pl.width*pl.scale {
+		// Trim the text to fit the screen
+		newLen := (pl.width*pl.scale+20)/pl.charWidth - 1
+		pl.pushNotificationText = pl.pushNotificationText[:newLen]
+	}
+}
+
 func (pl *SDLPlugin) Destroy() {
 	pl.renderer.Destroy()
 	pl.window.Destroy()
+	pl.surface.Free()
+	pl.font.Close()
 	sdl.CloseAudioDevice(pl.audioDevice)
 	sdl.Quit()
 }
@@ -116,6 +157,30 @@ func (pl *SDLPlugin) CommitScreen() {
 		W: int32(pl.width * pl.scale),
 		H: int32(pl.height * pl.scale)}
 	pl.renderer.Copy(texture, nil, &rect)
+
+	if pl.pushNotificationCounter > 0 {
+		pl.pushNotificationCounter -= 1
+
+		pushSurface, err := pl.font.RenderUTF8Shaded(
+			pl.pushNotificationText, SDL_WHITE, SDL_BLACK)
+		if err != nil {
+			fmt.Println("Unable to render push notification")
+			return
+		}
+		defer pushSurface.Free()
+		pushTexture, err := pl.renderer.CreateTextureFromSurface(pushSurface)
+		if err != nil {
+			fmt.Println("Unable to create texture while rendering (push notification)")
+			return
+		}
+		defer texture.Destroy()
+		pushRect := sdl.Rect{
+			X: 10,
+			Y: 10,
+			W: int32(pl.charWidth * len(pl.pushNotificationText)),
+			H: int32(pl.charHeight)}
+		pl.renderer.Copy(pushTexture, nil, &pushRect)
+	}
 
 	pl.renderer.Present()
 
@@ -158,6 +223,11 @@ func (pl *SDLPlugin) Run(console *gbc.Console) error {
 						}
 						pl.slowMode = false
 						pl.fastMode = !pl.fastMode
+						if pl.fastMode {
+							pl.DisplayNotification("fast mode")
+						} else {
+							pl.DisplayNotification("normal mode")
+						}
 						pl.setTitle()
 					}
 				case sdl.K_g:
@@ -168,42 +238,74 @@ func (pl *SDLPlugin) Run(console *gbc.Console) error {
 						}
 						pl.fastMode = false
 						pl.slowMode = !pl.slowMode
+						if pl.slowMode {
+							pl.DisplayNotification("slow mode")
+						} else {
+							pl.DisplayNotification("normal mode")
+						}
 						pl.setTitle()
 					}
 				case sdl.K_m:
 					if t.State == sdl.PRESSED {
 						console.APU.ToggleAudio()
+						if console.APU.IsMuted() {
+							pl.DisplayNotification("muted")
+						} else {
+							pl.DisplayNotification("unmuted")
+						}
 					}
 				case sdl.K_PLUS:
 					if t.State == sdl.PRESSED {
 						console.APU.IncreaseAudio()
+						pl.DisplayNotification(console.APU.GetVolumeString())
 					}
 				case sdl.K_MINUS:
 					if t.State == sdl.PRESSED {
 						console.APU.DecreaseAudio()
+						pl.DisplayNotification(console.APU.GetVolumeString())
 					}
 				// Debug Flags
 				case sdl.K_1:
 					if t.State == sdl.PRESSED {
 						console.APU.ToggleSoundChannel(1)
+						if console.APU.IsChMuted(1) {
+							pl.DisplayNotification("ch1 muted")
+						} else {
+							pl.DisplayNotification("ch1 unmuted")
+						}
 					}
 				case sdl.K_2:
 					if t.State == sdl.PRESSED {
 						console.APU.ToggleSoundChannel(2)
+						if console.APU.IsChMuted(2) {
+							pl.DisplayNotification("ch2 muted")
+						} else {
+							pl.DisplayNotification("ch2 unmuted")
+						}
 					}
 				case sdl.K_3:
 					if t.State == sdl.PRESSED {
 						console.APU.ToggleSoundChannel(3)
+						if console.APU.IsChMuted(3) {
+							pl.DisplayNotification("ch3 muted")
+						} else {
+							pl.DisplayNotification("ch3 unmuted")
+						}
 					}
 				case sdl.K_4:
 					if t.State == sdl.PRESSED {
 						console.APU.ToggleSoundChannel(4)
+						if console.APU.IsChMuted(4) {
+							pl.DisplayNotification("ch4 muted")
+						} else {
+							pl.DisplayNotification("ch4 unmuted")
+						}
 					}
-				case sdl.K_b:
-					if t.State == sdl.PRESSED {
-						bgmap := console.GetBackgroundMapStr()
-						fmt.Println(bgmap)
-					}
+				// case sdl.K_b:
+				// 	if t.State == sdl.PRESSED {
+				// 		bgmap := console.GetBackgroundMapStr()
+				// 		fmt.Println(bgmap)
+				// 	}
 
 				// GB Keys
 				case sdl.K_z:
