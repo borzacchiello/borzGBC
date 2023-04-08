@@ -175,7 +175,7 @@ func (a *Apu) Tick(cpuTicks int) {
 	}
 	a.tickCounter += increment
 
-	cpuTicksPerSample := float64(a.GBC.CPUFreq) / sampleRate * 0.9
+	cpuTicksPerSample := float64(a.GBC.CPUFreq) / sampleRate * 0.99
 	if a.tickCounter < cpuTicksPerSample {
 		return
 	}
