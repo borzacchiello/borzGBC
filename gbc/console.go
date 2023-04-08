@@ -20,7 +20,7 @@ var InterruptJoypad z80cpu.Z80Interrupt = z80cpu.Z80Interrupt{
 
 const GBCPU_FREQ = 4194304
 
-type MediaDriver interface {
+type Frontend interface {
 	NotifyAudioSample(l, r int8)
 	SetPixel(x, y int, color uint32)
 	CommitScreen()
@@ -446,7 +446,7 @@ func storeSav(cart *Cart) error {
 	return nil
 }
 
-func MakeConsole(rom_filepath string, mediaDriver MediaDriver) (*Console, error) {
+func MakeConsole(rom_filepath string, frontend Frontend) (*Console, error) {
 	cart, err := LoadCartridge(rom_filepath)
 	if err != nil {
 		return nil, err
@@ -473,8 +473,8 @@ func MakeConsole(rom_filepath string, mediaDriver MediaDriver) (*Console, error)
 		Verbose:         false,
 	}
 	res.DMA = MakeDma(res)
-	res.PPU = MakePpu(res, mediaDriver)
-	res.APU = MakeApu(res, mediaDriver)
+	res.PPU = MakePpu(res, frontend)
+	res.APU = MakeApu(res, frontend)
 	res.CPU = z80cpu.MakeZ80Cpu(res)
 	res.Input = MakeJoypad(res)
 	res.timer = MakeTimer(res)

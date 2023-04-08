@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
+	"borzGBC/frontend"
 	"borzGBC/gbc"
-	"borzGBC/mediaplugin"
 )
 
 func main() {
@@ -14,7 +14,7 @@ func main() {
 		return
 	}
 
-	pl, err := mediaplugin.MakeSDLPlugin( /* scaling factor */ 3)
+	pl, err := frontend.MakeSDLPlugin( /* scaling factor */ 3)
 	if err != nil {
 		fmt.Printf("unable to create SDLPlugin: %s\n", err)
 		return

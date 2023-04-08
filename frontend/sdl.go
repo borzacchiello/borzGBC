@@ -1,4 +1,4 @@
-package mediaplugin
+package frontend
 
 import (
 	"borzGBC/gbc"

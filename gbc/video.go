@@ -86,8 +86,8 @@ func (sprite *Sprite) renderPriority() bool {
 }
 
 type Ppu struct {
-	Driver MediaDriver
-	GBC    *Console
+	frontend Frontend
+	GBC      *Console
 
 	VRAM     [2][0x2000]uint8
 	VRAMBank uint8
@@ -183,11 +183,11 @@ func (ppu *Ppu) coincidenceInterrupt() bool {
 	return (ppu.STAT>>6)&1 != 0
 }
 
-func MakePpu(GBC *Console, mediaDriver MediaDriver) *Ppu {
+func MakePpu(GBC *Console, frontend Frontend) *Ppu {
 	ppu := &Ppu{
-		Driver: mediaDriver,
-		GBC:    GBC,
-		Mode:   ACCESS_OAM,
+		frontend: frontend,
+		GBC:      GBC,
+		Mode:     ACCESS_OAM,
 	}
 	return ppu
 }
@@ -200,7 +200,7 @@ func (ppu *Ppu) setPixel(x, y int, c uint8, pixelInfo PixelInfo, palette *Palett
 	color := palette.colors[c]
 
 	ppu.screen[x][y] = pixelInfo
-	ppu.Driver.SetPixel(x, y, color)
+	ppu.frontend.SetPixel(x, y, color)
 }
 
 func (ppu *Ppu) ReadVRam(addr uint16) uint8 {
@@ -705,7 +705,7 @@ func (ppu *Ppu) Tick(ticks int) {
 
 				ppu.FrameCount += 1
 				if ppu.DisplayEnabled() {
-					ppu.Driver.CommitScreen()
+					ppu.frontend.CommitScreen()
 
 					ppu.GBC.CPU.SetInterrupt(InterruptVBlank.Mask)
 					ppu.wasModeInterruptTriggered = false

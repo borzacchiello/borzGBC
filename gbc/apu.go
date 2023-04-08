@@ -104,7 +104,7 @@ type Channel struct {
 // Channels 1 and 2 are both Square channels, channel 3 is a arbitrary
 // waveform channel which can be set in RAM, and channel 4 outputs noise.
 type Apu struct {
-	mediaDriver  MediaDriver
+	frontend     Frontend
 	GBC          *Console
 	GlobalVolume float64
 	playing      bool
@@ -117,13 +117,13 @@ type Apu struct {
 	lVol, rVol             float64
 }
 
-func MakeApu(GBC *Console, mediaDriver MediaDriver) *Apu {
+func MakeApu(GBC *Console, frontend Frontend) *Apu {
 	a := &Apu{}
 
 	a.GBC = GBC
 	a.GlobalVolume = 0.5
 	a.playing = true
-	a.mediaDriver = mediaDriver
+	a.frontend = frontend
 	a.lVol = 1
 	a.rVol = 1
 
@@ -192,7 +192,7 @@ func (a *Apu) Tick(cpuTicks int) {
 
 	// fmt.Printf("valL: %f, valR: %f\n", float64(valL)*a.lVol, float64(valR)*a.rVol)
 
-	a.mediaDriver.NotifyAudioSample(
+	a.frontend.NotifyAudioSample(
 		int8(float64(valL)*a.lVol*a.GlobalVolume),
 		int8(float64(valR)*a.rVol*a.GlobalVolume))
 }

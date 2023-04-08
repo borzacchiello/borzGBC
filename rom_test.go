@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"borzGBC/frontend"
 	"borzGBC/gbc"
-	"borzGBC/mediaplugin"
 )
 
 func imagesAreEqual(img1, img2 image.Image) bool {
@@ -29,7 +29,7 @@ func imagesAreEqual(img1, img2 image.Image) bool {
 
 func runRomTest(t *testing.T, test string, frames int) {
 	testName := strings.Split(test, ".")[0]
-	pl := mediaplugin.MkImageVideoDriver()
+	pl := frontend.MkImageVideoDriver()
 	console, err := gbc.MakeConsole(fmt.Sprintf("testRoms/%s", test), pl)
 	if err != nil {
 		t.Error("Unable to create console")
