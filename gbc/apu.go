@@ -433,7 +433,7 @@ func Noise() WaveGenerator {
 	return func(t float64) int8 {
 		if t-last > twoPi {
 			last = t
-			val = int8(rand.Intn(16)) << 3
+			val = int8(rand.Intn(32))
 		}
 		return int8(val)
 	}
