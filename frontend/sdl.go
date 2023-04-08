@@ -9,16 +9,16 @@ import (
 )
 
 type SDLPlugin struct {
-	Window        *sdl.Window
-	Renderer      *sdl.Renderer
-	Surface       *sdl.Surface
-	Width, Height int
-	Scale         int
+	window        *sdl.Window
+	renderer      *sdl.Renderer
+	surface       *sdl.Surface
+	width, height int
+	scale         int
 
-	AudioSpec      sdl.AudioSpec
-	AudioDevice    sdl.AudioDeviceID
-	SoundBuffer    []byte
-	SoundBufferIdx int
+	audioSpec      sdl.AudioSpec
+	audioDevice    sdl.AudioDeviceID
+	soundBuffer    []byte
+	soundBufferIdx int
 
 	fastMode bool
 	slowMode bool
@@ -31,28 +31,28 @@ func MakeSDLPlugin(scale int) (*SDLPlugin, error) {
 		return nil, err
 	}
 	pl := &SDLPlugin{
-		Width:    160,
-		Height:   144,
-		Scale:    scale,
+		width:    160,
+		height:   144,
+		scale:    scale,
 		fastMode: false,
 		slowMode: false,
 	}
 
-	pl.Window, pl.Renderer, err = sdl.CreateWindowAndRenderer(
-		int32(pl.Width*pl.Scale), int32(pl.Height*pl.Scale), 0)
+	pl.window, pl.renderer, err = sdl.CreateWindowAndRenderer(
+		int32(pl.width*pl.scale), int32(pl.height*pl.scale), 0)
 	if err != nil {
 		return nil, err
 	}
 	pl.setTitle()
 
-	pl.Surface, err = sdl.CreateRGBSurface(
-		0, int32(pl.Width), int32(pl.Height), 32, 0xFF000000, 0x00FF0000, 0x0000FF00, 0x000000FF)
+	pl.surface, err = sdl.CreateRGBSurface(
+		0, int32(pl.width), int32(pl.height), 32, 0xFF000000, 0x00FF0000, 0x0000FF00, 0x000000FF)
 	if err != nil {
 		return nil, err
 	}
 
-	pl.Renderer.SetDrawColor(0, 0, 0, 255)
-	pl.Renderer.Clear()
+	pl.renderer.SetDrawColor(0, 0, 0, 255)
+	pl.renderer.Clear()
 
 	// Audio
 	want := sdl.AudioSpec{}
@@ -60,31 +60,31 @@ func MakeSDLPlugin(scale int) (*SDLPlugin, error) {
 	want.Format = sdl.AUDIO_S8
 	want.Channels = 2
 	want.Samples = 2048
-	pl.AudioDevice, err = sdl.OpenAudioDevice("", false, &want, &pl.AudioSpec, 0)
+	pl.audioDevice, err = sdl.OpenAudioDevice("", false, &want, &pl.audioSpec, 0)
 	if err != nil {
 		return nil, err
 	}
-	pl.SoundBuffer = make([]byte, pl.AudioSpec.Samples*2)
-	sdl.PauseAudioDevice(pl.AudioDevice, false)
+	pl.soundBuffer = make([]byte, pl.audioSpec.Samples*2)
+	sdl.PauseAudioDevice(pl.audioDevice, false)
 
 	return pl, nil
 }
 
 func (pl *SDLPlugin) NotifyAudioSample(l, r int8) {
 	// fmt.Printf("adding sample: %d, %d\n", l, r)
-	if pl.SoundBufferIdx >= len(pl.SoundBuffer) {
-		pl.SoundBufferIdx = 0
-		sdl.QueueAudio(pl.AudioDevice, pl.SoundBuffer[:])
+	if pl.soundBufferIdx >= len(pl.soundBuffer) {
+		pl.soundBufferIdx = 0
+		sdl.QueueAudio(pl.audioDevice, pl.soundBuffer[:])
 	}
-	pl.SoundBuffer[pl.SoundBufferIdx] = byte(l)
-	pl.SoundBuffer[pl.SoundBufferIdx+1] = byte(r)
-	pl.SoundBufferIdx += 2
+	pl.soundBuffer[pl.soundBufferIdx] = byte(l)
+	pl.soundBuffer[pl.soundBufferIdx+1] = byte(r)
+	pl.soundBufferIdx += 2
 }
 
 func (pl *SDLPlugin) Destroy() {
-	pl.Renderer.Destroy()
-	pl.Window.Destroy()
-	sdl.CloseAudioDevice(pl.AudioDevice)
+	pl.renderer.Destroy()
+	pl.window.Destroy()
+	sdl.CloseAudioDevice(pl.audioDevice)
 	sdl.Quit()
 }
 
@@ -95,15 +95,15 @@ func (pl *SDLPlugin) SetPixel(x, y int, c uint32) {
 	b = uint8((c >> 8) & 0xFF)
 	a = uint8(c & 0xFF)
 
-	pixels := pl.Surface.Pixels()
-	pixels[y*int(pl.Surface.Pitch)+x*int(pl.Surface.BytesPerPixel())+0] = a
-	pixels[y*int(pl.Surface.Pitch)+x*int(pl.Surface.BytesPerPixel())+1] = b
-	pixels[y*int(pl.Surface.Pitch)+x*int(pl.Surface.BytesPerPixel())+2] = g
-	pixels[y*int(pl.Surface.Pitch)+x*int(pl.Surface.BytesPerPixel())+3] = r
+	pixels := pl.surface.Pixels()
+	pixels[y*int(pl.surface.Pitch)+x*int(pl.surface.BytesPerPixel())+0] = a
+	pixels[y*int(pl.surface.Pitch)+x*int(pl.surface.BytesPerPixel())+1] = b
+	pixels[y*int(pl.surface.Pitch)+x*int(pl.surface.BytesPerPixel())+2] = g
+	pixels[y*int(pl.surface.Pitch)+x*int(pl.surface.BytesPerPixel())+3] = r
 }
 
 func (pl *SDLPlugin) CommitScreen() {
-	texture, err := pl.Renderer.CreateTextureFromSurface(pl.Surface)
+	texture, err := pl.renderer.CreateTextureFromSurface(pl.surface)
 	if err != nil {
 		fmt.Println("Unable to create texture while rendering")
 		return
@@ -113,14 +113,14 @@ func (pl *SDLPlugin) CommitScreen() {
 	rect := sdl.Rect{
 		X: 0,
 		Y: 0,
-		W: int32(pl.Width * pl.Scale),
-		H: int32(pl.Height * pl.Scale)}
-	pl.Renderer.Copy(texture, nil, &rect)
+		W: int32(pl.width * pl.scale),
+		H: int32(pl.height * pl.scale)}
+	pl.renderer.Copy(texture, nil, &rect)
 
-	pl.Renderer.Present()
+	pl.renderer.Present()
 
-	pl.Renderer.SetDrawColor(0xff, 0xff, 0xff, 0xff)
-	pl.Renderer.Clear()
+	pl.renderer.SetDrawColor(0xff, 0xff, 0xff, 0xff)
+	pl.renderer.Clear()
 }
 
 func (pl *SDLPlugin) setTitle() {
@@ -130,7 +130,7 @@ func (pl *SDLPlugin) setTitle() {
 	} else if pl.slowMode {
 		title += " - SLOW"
 	}
-	pl.Window.SetTitle(title)
+	pl.window.SetTitle(title)
 }
 
 func (pl *SDLPlugin) Run(console *gbc.Console) error {
@@ -230,7 +230,7 @@ func (pl *SDLPlugin) Run(console *gbc.Console) error {
 		elapsed := time.Since(start)
 		if int(elapsed.Milliseconds()) < console.GetMs(ticks) {
 			sdl.Delay(uint32(console.GetMs(ticks) - int(elapsed.Milliseconds())))
-			for sdl.GetQueuedAudioSize(pl.AudioDevice) > uint32(pl.AudioSpec.Freq/2) {
+			for sdl.GetQueuedAudioSize(pl.audioDevice) > uint32(pl.audioSpec.Freq/2) {
 				// Wait for audio buffer to process remaining data (if any)
 				sdl.Delay(100)
 			}

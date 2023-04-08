@@ -55,7 +55,7 @@ func runRomTest(t *testing.T, test string, frames int) {
 		return
 	}
 
-	if !imagesAreEqual(expected, pl.FrontImg) {
+	if !imagesAreEqual(expected, pl.GetCurrentImage()) {
 		t.Fail()
 	}
 }
