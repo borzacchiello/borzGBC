@@ -20,10 +20,15 @@ func MakeJoypad(cons *Console) *Joypad {
 
 func (j *Joypad) Tick(ticks int) {
 	j.ticks += ticks
-	if j.ticks >= 16384 {
-		j.ticks -= 16384
-		j.FrontState = j.BackState
-		j.cons.CPU.SetInterrupt(InterruptJoypad.Mask)
+
+	// ~ 10 ms
+	thresholdTicks := j.cons.CPUFreq * 10 / 4000
+	if j.ticks >= thresholdTicks {
+		j.ticks -= thresholdTicks
+		if j.FrontState != j.BackState {
+			j.FrontState = j.BackState
+			j.cons.CPU.SetInterrupt(InterruptJoypad.Mask)
+		}
 	}
 }
 
