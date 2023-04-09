@@ -1,6 +1,7 @@
 package gbc
 
 import (
+	"encoding/gob"
 	"fmt"
 	"os"
 )
@@ -8,6 +9,8 @@ import (
 type Mapper interface {
 	MapperRead(addr uint16) uint8
 	MapperWrite(addr uint16, value uint8)
+	MapperSave(encoder *gob.Encoder)
+	MapperLoad(decoder *gob.Decoder)
 	MapperClose()
 }
 
@@ -31,7 +34,9 @@ type ROMOnlyMapper struct {
 	cart *Cart
 }
 
-func (m ROMOnlyMapper) MapperClose() {}
+func (m ROMOnlyMapper) MapperSave(encoder *gob.Encoder) {}
+func (m ROMOnlyMapper) MapperLoad(decoder *gob.Decoder) {}
+func (m ROMOnlyMapper) MapperClose()                    {}
 
 func (m ROMOnlyMapper) MapperRead(addr uint16) uint8 {
 	bank_n := addr >> 14
@@ -51,6 +56,24 @@ type MBC1Mapper struct {
 	romBank        uint8 // 2000 - 3FFF
 	ramBank        uint8 // 4000 - 5FFF
 	advBankingMode bool  // 6000 - 7FFF
+}
+
+func (m *MBC1Mapper) MapperSave(encoder *gob.Encoder) {
+	panicIfErr(encoder.Encode(m.bankMask))
+	panicIfErr(encoder.Encode(m.ramMask))
+	panicIfErr(encoder.Encode(m.ramEnabled))
+	panicIfErr(encoder.Encode(m.romBank))
+	panicIfErr(encoder.Encode(m.ramBank))
+	panicIfErr(encoder.Encode(m.advBankingMode))
+}
+
+func (m *MBC1Mapper) MapperLoad(decoder *gob.Decoder) {
+	panicIfErr(decoder.Decode(&m.bankMask))
+	panicIfErr(decoder.Decode(&m.ramMask))
+	panicIfErr(decoder.Decode(&m.ramEnabled))
+	panicIfErr(decoder.Decode(&m.romBank))
+	panicIfErr(decoder.Decode(&m.ramBank))
+	panicIfErr(decoder.Decode(&m.advBankingMode))
 }
 
 func MakeMBC1Mapper(cart *Cart) *MBC1Mapper {
@@ -149,6 +172,28 @@ type MBC3Mapper struct {
 	rtcEnabled bool   // 0000 - 1FFF
 	romBank    uint16 // 2000 - 3FFF
 	ramBank    uint8  // 4000 - 5FFF
+}
+
+func (m *MBC3Mapper) MapperSave(encoder *gob.Encoder) {
+	panicIfErr(encoder.Encode(m.rtcMapped))
+	panicIfErr(encoder.Encode(m.rtcRegVal))
+	panicIfErr(encoder.Encode(m.rtcLastLatch))
+	panicIfErr(encoder.Encode(m.ramEnabled))
+	panicIfErr(encoder.Encode(m.rtcEnabled))
+	panicIfErr(encoder.Encode(m.romBank))
+	panicIfErr(encoder.Encode(m.ramBank))
+	m.rtc.Save(encoder)
+}
+
+func (m *MBC3Mapper) MapperLoad(decoder *gob.Decoder) {
+	panicIfErr(decoder.Decode(&m.rtcMapped))
+	panicIfErr(decoder.Decode(&m.rtcRegVal))
+	panicIfErr(decoder.Decode(&m.rtcLastLatch))
+	panicIfErr(decoder.Decode(&m.ramEnabled))
+	panicIfErr(decoder.Decode(&m.rtcEnabled))
+	panicIfErr(decoder.Decode(&m.romBank))
+	panicIfErr(decoder.Decode(&m.ramBank))
+	m.rtc.Load(decoder)
 }
 
 func MakeMBC3Mapper(cart *Cart) *MBC3Mapper {
@@ -273,6 +318,18 @@ type MBC5Mapper struct {
 	ramEnabled bool   // 0000 - 1FFF
 	romBank    uint16 // 2000 - 3FFF
 	ramBank    uint8  // 4000 - 5FFF
+}
+
+func (m *MBC5Mapper) MapperSave(encoder *gob.Encoder) {
+	panicIfErr(encoder.Encode(m.ramEnabled))
+	panicIfErr(encoder.Encode(m.romBank))
+	panicIfErr(encoder.Encode(m.ramBank))
+}
+
+func (m *MBC5Mapper) MapperLoad(decoder *gob.Decoder) {
+	panicIfErr(decoder.Decode(&m.ramEnabled))
+	panicIfErr(decoder.Decode(&m.romBank))
+	panicIfErr(decoder.Decode(&m.ramBank))
 }
 
 func MakeMBC5Mapper(cart *Cart) *MBC5Mapper {

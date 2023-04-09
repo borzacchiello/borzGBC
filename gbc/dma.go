@@ -1,5 +1,7 @@
 package gbc
 
+import "encoding/gob"
+
 type DmaState uint8
 type DmaType uint8
 
@@ -31,6 +33,36 @@ type Dma struct {
 	HdmaDstLo       uint8
 	HdmaBytesToCopy int
 	HdmaHblankBytes int
+}
+
+func (dma *Dma) Save(encoder *gob.Encoder) {
+	panicIfErr(encoder.Encode(dma.GbDmaCycles))
+	panicIfErr(encoder.Encode(dma.GbDmaValue))
+	panicIfErr(encoder.Encode(dma.HdmaWritten))
+	panicIfErr(encoder.Encode(dma.HdmaState))
+	panicIfErr(encoder.Encode(dma.HdmaType))
+	panicIfErr(encoder.Encode(dma.HdmaControl))
+	panicIfErr(encoder.Encode(dma.HdmaSrcHi))
+	panicIfErr(encoder.Encode(dma.HdmaSrcLo))
+	panicIfErr(encoder.Encode(dma.HdmaDstHi))
+	panicIfErr(encoder.Encode(dma.HdmaDstLo))
+	panicIfErr(encoder.Encode(dma.HdmaBytesToCopy))
+	panicIfErr(encoder.Encode(dma.HdmaHblankBytes))
+}
+
+func (dma *Dma) Load(decoder *gob.Decoder) {
+	panicIfErr(decoder.Decode(&dma.GbDmaCycles))
+	panicIfErr(decoder.Decode(&dma.GbDmaValue))
+	panicIfErr(decoder.Decode(&dma.HdmaWritten))
+	panicIfErr(decoder.Decode(&dma.HdmaState))
+	panicIfErr(decoder.Decode(&dma.HdmaType))
+	panicIfErr(decoder.Decode(&dma.HdmaControl))
+	panicIfErr(decoder.Decode(&dma.HdmaSrcHi))
+	panicIfErr(decoder.Decode(&dma.HdmaSrcLo))
+	panicIfErr(decoder.Decode(&dma.HdmaDstHi))
+	panicIfErr(decoder.Decode(&dma.HdmaDstLo))
+	panicIfErr(decoder.Decode(&dma.HdmaBytesToCopy))
+	panicIfErr(decoder.Decode(&dma.HdmaHblankBytes))
 }
 
 func MakeDma(GBC *Console) *Dma {

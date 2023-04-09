@@ -2,6 +2,7 @@ package gbc
 
 import (
 	"encoding/binary"
+	"encoding/gob"
 	"os"
 )
 
@@ -32,6 +33,16 @@ type Cart struct {
 	RAMBanks [][8192]uint8
 
 	Map Mapper
+}
+
+func (cart *Cart) Save(encoder *gob.Encoder) {
+	panicIfErr(encoder.Encode(cart.RAMBanks))
+	cart.Map.MapperSave(encoder)
+}
+
+func (cart *Cart) Load(decoder *gob.Decoder) {
+	panicIfErr(decoder.Decode(&cart.RAMBanks))
+	cart.Map.MapperLoad(decoder)
 }
 
 type CartError string

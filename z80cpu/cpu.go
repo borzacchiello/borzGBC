@@ -1,6 +1,7 @@
 package z80cpu
 
 import (
+	"encoding/gob"
 	"fmt"
 )
 
@@ -53,6 +54,56 @@ func (cpu *Z80Cpu) Reset() {
 	cpu.PC = 0
 	cpu.OutBuffer = make([]byte, 0)
 	cpu.IsHalted = false
+}
+
+func panicIfErr(e error) {
+	if e != nil {
+		panic(e)
+	}
+}
+
+func (cpu *Z80Cpu) Save(encoder *gob.Encoder) {
+	panicIfErr(encoder.Encode(cpu.A))
+	panicIfErr(encoder.Encode(cpu.B))
+	panicIfErr(encoder.Encode(cpu.C))
+	panicIfErr(encoder.Encode(cpu.D))
+	panicIfErr(encoder.Encode(cpu.E))
+	panicIfErr(encoder.Encode(cpu.H))
+	panicIfErr(encoder.Encode(cpu.L))
+	panicIfErr(encoder.Encode(cpu.SP))
+	panicIfErr(encoder.Encode(cpu.PC))
+	panicIfErr(encoder.Encode(cpu.IE))
+	panicIfErr(encoder.Encode(cpu.IF))
+	panicIfErr(encoder.Encode(cpu.flagWasZero))
+	panicIfErr(encoder.Encode(cpu.flagWasSub))
+	panicIfErr(encoder.Encode(cpu.flagHalfCarry))
+	panicIfErr(encoder.Encode(cpu.flagCarry))
+	panicIfErr(encoder.Encode(cpu.branchWasTaken))
+	panicIfErr(encoder.Encode(cpu.IsHalted))
+	panicIfErr(encoder.Encode(cpu.IsStopped))
+	panicIfErr(encoder.Encode(cpu.interruptsEnabled))
+}
+
+func (cpu *Z80Cpu) Load(decoder *gob.Decoder) {
+	panicIfErr(decoder.Decode(&cpu.A))
+	panicIfErr(decoder.Decode(&cpu.B))
+	panicIfErr(decoder.Decode(&cpu.C))
+	panicIfErr(decoder.Decode(&cpu.D))
+	panicIfErr(decoder.Decode(&cpu.E))
+	panicIfErr(decoder.Decode(&cpu.H))
+	panicIfErr(decoder.Decode(&cpu.L))
+	panicIfErr(decoder.Decode(&cpu.SP))
+	panicIfErr(decoder.Decode(&cpu.PC))
+	panicIfErr(decoder.Decode(&cpu.IE))
+	panicIfErr(decoder.Decode(&cpu.IF))
+	panicIfErr(decoder.Decode(&cpu.flagWasZero))
+	panicIfErr(decoder.Decode(&cpu.flagWasSub))
+	panicIfErr(decoder.Decode(&cpu.flagHalfCarry))
+	panicIfErr(decoder.Decode(&cpu.flagCarry))
+	panicIfErr(decoder.Decode(&cpu.branchWasTaken))
+	panicIfErr(decoder.Decode(&cpu.IsHalted))
+	panicIfErr(decoder.Decode(&cpu.IsStopped))
+	panicIfErr(decoder.Decode(&cpu.interruptsEnabled))
 }
 
 func (cpu *Z80Cpu) RegisterInterrupt(interrupt Z80Interrupt) {

@@ -25,6 +25,7 @@
 package gbc
 
 import (
+	"encoding/gob"
 	"fmt"
 	"math"
 	"math/rand"
@@ -99,6 +100,50 @@ type Channel struct {
 	debugOff bool
 }
 
+func (ch *Channel) Save(encoder *gob.Encoder) {
+	panicIfErr(encoder.Encode(ch.frequency))
+	panicIfErr(encoder.Encode(ch.time))
+	panicIfErr(encoder.Encode(ch.amplitude))
+	panicIfErr(encoder.Encode(ch.duration))
+	panicIfErr(encoder.Encode(ch.length))
+	panicIfErr(encoder.Encode(ch.envelopeVolume))
+	panicIfErr(encoder.Encode(ch.envelopeTime))
+	panicIfErr(encoder.Encode(ch.envelopeSteps))
+	panicIfErr(encoder.Encode(ch.envelopeStepsInit))
+	panicIfErr(encoder.Encode(ch.envelopeSamples))
+	panicIfErr(encoder.Encode(ch.envelopeIncreasing))
+	panicIfErr(encoder.Encode(ch.sweepTime))
+	panicIfErr(encoder.Encode(ch.sweepStepLen))
+	panicIfErr(encoder.Encode(ch.sweepSteps))
+	panicIfErr(encoder.Encode(ch.sweepStep))
+	panicIfErr(encoder.Encode(ch.sweepIncrease))
+	panicIfErr(encoder.Encode(ch.onL))
+	panicIfErr(encoder.Encode(ch.onR))
+	panicIfErr(encoder.Encode(ch.debugOff))
+}
+
+func (ch *Channel) Load(decoder *gob.Decoder) {
+	panicIfErr(decoder.Decode(&ch.frequency))
+	panicIfErr(decoder.Decode(&ch.time))
+	panicIfErr(decoder.Decode(&ch.amplitude))
+	panicIfErr(decoder.Decode(&ch.duration))
+	panicIfErr(decoder.Decode(&ch.length))
+	panicIfErr(decoder.Decode(&ch.envelopeVolume))
+	panicIfErr(decoder.Decode(&ch.envelopeTime))
+	panicIfErr(decoder.Decode(&ch.envelopeSteps))
+	panicIfErr(decoder.Decode(&ch.envelopeStepsInit))
+	panicIfErr(decoder.Decode(&ch.envelopeSamples))
+	panicIfErr(decoder.Decode(&ch.envelopeIncreasing))
+	panicIfErr(decoder.Decode(&ch.sweepTime))
+	panicIfErr(decoder.Decode(&ch.sweepStepLen))
+	panicIfErr(decoder.Decode(&ch.sweepSteps))
+	panicIfErr(decoder.Decode(&ch.sweepStep))
+	panicIfErr(decoder.Decode(&ch.sweepIncrease))
+	panicIfErr(decoder.Decode(&ch.onL))
+	panicIfErr(decoder.Decode(&ch.onR))
+	panicIfErr(decoder.Decode(&ch.debugOff))
+}
+
 // APU is the GameBoy's audio processing unit. Audio comprises four
 // channels, each one controlled by a set of registers.
 //
@@ -116,6 +161,34 @@ type Apu struct {
 	chn1, chn2, chn3, chn4 *Channel
 	tickCounter            float64
 	lVol, rVol             float64
+}
+
+func (apu *Apu) Save(encoder *gob.Encoder) {
+	panicIfErr(encoder.Encode(apu.globalVolume))
+	panicIfErr(encoder.Encode(apu.playing))
+	panicIfErr(encoder.Encode(apu.memory))
+	panicIfErr(encoder.Encode(apu.waveformRam))
+	panicIfErr(encoder.Encode(apu.tickCounter))
+	panicIfErr(encoder.Encode(apu.lVol))
+	panicIfErr(encoder.Encode(apu.rVol))
+	apu.chn1.Save(encoder)
+	apu.chn2.Save(encoder)
+	apu.chn3.Save(encoder)
+	apu.chn4.Save(encoder)
+}
+
+func (apu *Apu) Load(decoder *gob.Decoder) {
+	panicIfErr(decoder.Decode(&apu.globalVolume))
+	panicIfErr(decoder.Decode(&apu.playing))
+	panicIfErr(decoder.Decode(&apu.memory))
+	panicIfErr(decoder.Decode(&apu.waveformRam))
+	panicIfErr(decoder.Decode(&apu.tickCounter))
+	panicIfErr(decoder.Decode(&apu.lVol))
+	panicIfErr(decoder.Decode(&apu.rVol))
+	apu.chn1.Load(decoder)
+	apu.chn2.Load(decoder)
+	apu.chn3.Load(decoder)
+	apu.chn4.Load(decoder)
 }
 
 func MakeApu(GBC *Console, frontend Frontend) *Apu {

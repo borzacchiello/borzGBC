@@ -215,6 +215,24 @@ func (pl *SDLPlugin) Run(console *gbc.Console) error {
 				switch keyCode {
 				case sdl.K_q:
 					running = false
+				case sdl.K_F1:
+					if t.State == sdl.PRESSED {
+						err := console.SaveState()
+						if err != nil {
+							pl.DisplayNotification("error while saving state")
+						} else {
+							pl.DisplayNotification("state saved")
+						}
+					}
+				case sdl.K_F8:
+					if t.State == sdl.PRESSED {
+						err := console.LoadState()
+						if err != nil {
+							pl.DisplayNotification("error while loading state")
+						} else {
+							pl.DisplayNotification("state loaded")
+						}
+					}
 				case sdl.K_f:
 					if t.State == sdl.PRESSED {
 						console.CPUFreq = gbc.GBCPU_FREQ

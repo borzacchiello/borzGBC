@@ -2,6 +2,7 @@ package gbc
 
 import (
 	"borzGBC/z80cpu"
+	"encoding/gob"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -54,6 +55,68 @@ type Console struct {
 	// Debug Flags
 	PrintDebug bool
 	Verbose    bool
+}
+
+func (cons *Console) Save(encoder *gob.Encoder) {
+	panicIfErr(encoder.Encode(cons.IOMem))
+	panicIfErr(encoder.Encode(cons.HighRAM))
+	panicIfErr(encoder.Encode(cons.WorkRAM))
+	panicIfErr(encoder.Encode(cons.RamBank))
+	panicIfErr(encoder.Encode(cons.SpeedSwitch))
+	panicIfErr(encoder.Encode(cons.DoubleSpeedMode))
+	panicIfErr(encoder.Encode(cons.InBootROM))
+	panicIfErr(encoder.Encode(cons.BootROM))
+	cons.Cart.Save(encoder)
+	cons.CPU.Save(encoder)
+	cons.PPU.Save(encoder)
+	cons.APU.Save(encoder)
+	cons.DMA.Save(encoder)
+	cons.timer.Save(encoder)
+	cons.Input.Save(encoder)
+}
+
+func (cons *Console) Load(decoder *gob.Decoder) {
+	panicIfErr(decoder.Decode(&cons.IOMem))
+	panicIfErr(decoder.Decode(&cons.HighRAM))
+	panicIfErr(decoder.Decode(&cons.WorkRAM))
+	panicIfErr(decoder.Decode(&cons.RamBank))
+	panicIfErr(decoder.Decode(&cons.SpeedSwitch))
+	panicIfErr(decoder.Decode(&cons.DoubleSpeedMode))
+	panicIfErr(decoder.Decode(&cons.InBootROM))
+	panicIfErr(decoder.Decode(&cons.BootROM))
+	cons.Cart.Load(decoder)
+	cons.CPU.Load(decoder)
+	cons.PPU.Load(decoder)
+	cons.APU.Load(decoder)
+	cons.DMA.Load(decoder)
+	cons.timer.Load(decoder)
+	cons.Input.Load(decoder)
+}
+
+func (cons *Console) SaveState() error {
+	stateFilename := cons.Cart.filepath + ".state"
+	f, err := os.Create(stateFilename)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	encoder := gob.NewEncoder(f)
+	cons.Save(encoder)
+	return nil
+}
+
+func (cons *Console) LoadState() error {
+	stateFilename := cons.Cart.filepath + ".state"
+	f, err := os.Open(stateFilename)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	decoder := gob.NewDecoder(f)
+	cons.Load(decoder)
+	return nil
 }
 
 func (cons *Console) readIO(addr uint16) uint8 {

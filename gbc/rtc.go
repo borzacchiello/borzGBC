@@ -1,6 +1,7 @@
 package gbc
 
 import (
+	"encoding/gob"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -16,6 +17,26 @@ type RTC struct {
 	//                  Bit 0  Most significant bit of Day Counter (Bit 8)
 	//                  Bit 6  Halt (0=Active, 1=Stop Timer)
 	//                  Bit 7  Day Counter Carry Bit (1=Counter Overflow)
+}
+
+func (rtc RTC) Save(encoder *gob.Encoder) {
+	panicIfErr(encoder.Encode(rtc.BaseTime))
+	panicIfErr(encoder.Encode(rtc.HaltTime))
+	panicIfErr(encoder.Encode(rtc.Seconds))
+	panicIfErr(encoder.Encode(rtc.Minutes))
+	panicIfErr(encoder.Encode(rtc.Hours))
+	panicIfErr(encoder.Encode(rtc.DaysL))
+	panicIfErr(encoder.Encode(rtc.DaysH))
+}
+
+func (rtc RTC) Load(decoder *gob.Decoder) {
+	panicIfErr(decoder.Decode(&rtc.BaseTime))
+	panicIfErr(decoder.Decode(&rtc.HaltTime))
+	panicIfErr(decoder.Decode(&rtc.Seconds))
+	panicIfErr(decoder.Decode(&rtc.Minutes))
+	panicIfErr(decoder.Decode(&rtc.Hours))
+	panicIfErr(decoder.Decode(&rtc.DaysL))
+	panicIfErr(decoder.Decode(&rtc.DaysH))
 }
 
 func MakeRTC() RTC {

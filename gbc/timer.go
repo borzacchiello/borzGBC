@@ -1,5 +1,7 @@
 package gbc
 
+import "encoding/gob"
+
 const DIV_THRESHOLD int = 256
 
 type Timer struct {
@@ -8,6 +10,24 @@ type Timer struct {
 	TIMA, TMA, TAC uint8
 
 	divCounter, timaCounter int
+}
+
+func (t *Timer) Save(encoder *gob.Encoder) {
+	panicIfErr(encoder.Encode(t.DIV))
+	panicIfErr(encoder.Encode(t.TIMA))
+	panicIfErr(encoder.Encode(t.TMA))
+	panicIfErr(encoder.Encode(t.TAC))
+	panicIfErr(encoder.Encode(t.divCounter))
+	panicIfErr(encoder.Encode(t.timaCounter))
+}
+
+func (t *Timer) Load(decoder *gob.Decoder) {
+	panicIfErr(decoder.Decode(&t.DIV))
+	panicIfErr(decoder.Decode(&t.TIMA))
+	panicIfErr(decoder.Decode(&t.TMA))
+	panicIfErr(decoder.Decode(&t.TAC))
+	panicIfErr(decoder.Decode(&t.divCounter))
+	panicIfErr(decoder.Decode(&t.timaCounter))
 }
 
 func MakeTimer(c *Console) *Timer {
