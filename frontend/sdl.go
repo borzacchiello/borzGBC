@@ -332,9 +332,9 @@ func (pl *SDLPlugin) Run(console *gbc.Console) error {
 		elapsed := time.Since(start)
 		if int(elapsed.Milliseconds()) < console.GetMs(ticks) {
 			sdl.Delay(uint32(console.GetMs(ticks) - int(elapsed.Milliseconds())))
-			for sdl.GetQueuedAudioSize(pl.audioDevice) > uint32(pl.audioSpec.Freq/2) {
+			for sdl.GetQueuedAudioSize(pl.audioDevice) > uint32(pl.audioSpec.Freq/5) {
 				// Wait for audio buffer to process remaining data (if any)
-				sdl.Delay(100)
+				sdl.Delay(80)
 			}
 		} else {
 			fmt.Println("Emulation is too slow")
