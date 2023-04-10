@@ -28,13 +28,14 @@ type Frontend interface {
 }
 
 type Console struct {
-	Cart  *Cart
-	CPU   *z80cpu.Z80Cpu
-	PPU   *Ppu
-	APU   *Apu
-	DMA   *Dma
-	timer *Timer
-	Input *Joypad
+	Cart   *Cart
+	CPU    *z80cpu.Z80Cpu
+	PPU    *Ppu
+	APU    *Apu
+	DMA    *Dma
+	serial *SerialPort
+	timer  *Timer
+	Input  *Joypad
 
 	CGBMode bool
 	CPUFreq int
@@ -72,6 +73,7 @@ func (cons *Console) Save(encoder *gob.Encoder) {
 	cons.APU.Save(encoder)
 	cons.DMA.Save(encoder)
 	cons.timer.Save(encoder)
+	cons.serial.Save(encoder)
 	cons.Input.Save(encoder)
 }
 
@@ -90,6 +92,7 @@ func (cons *Console) Load(decoder *gob.Decoder) {
 	cons.APU.Load(decoder)
 	cons.DMA.Load(decoder)
 	cons.timer.Load(decoder)
+	cons.serial.Load(decoder)
 	cons.Input.Load(decoder)
 }
 
@@ -123,6 +126,12 @@ func (cons *Console) readIO(addr uint16) uint8 {
 	switch {
 	case addr == 0xFF00:
 		return cons.Input.FrontState.PackButtons()
+	case addr == 0xFF01:
+		fmt.Printf("reading %02x from 0xFF01\n", cons.serial.SB)
+		return cons.serial.SB
+	case addr == 0xFF02:
+		fmt.Printf("reading %02x from 0xFF02\n", cons.serial.SC)
+		return cons.serial.SC
 	case addr == 0xFF04:
 		return uint8(cons.timer.DIV >> 8)
 	case addr == 0xFF05:
@@ -238,6 +247,12 @@ func (cons *Console) writeIO(addr uint16, value uint8) {
 	case addr == 0xFF00:
 		cons.Input.FrontState.DirectionSelector = value&(1<<4) == 0
 		cons.Input.FrontState.ActionSelector = value&(1<<5) == 0
+	case addr == 0xFF01:
+		fmt.Printf("wrote %02x to 0xFF01\n", value)
+		cons.serial.WriteSB(value)
+	case addr == 0xFF02:
+		fmt.Printf("wrote %02x to 0xFF02\n", value)
+		cons.serial.WriteSC(value)
 	case addr == 0xFF04:
 		cons.timer.reset()
 	case addr == 0xFF05:
@@ -541,6 +556,7 @@ func MakeConsole(rom_filepath string, frontend Frontend) (*Console, error) {
 	res.CPU = z80cpu.MakeZ80Cpu(res)
 	res.Input = MakeJoypad(res)
 	res.timer = MakeTimer(res)
+	res.serial = MakeSerialPort(res)
 
 	res.CPU.RegisterInterrupt(InterruptVBlank)
 	res.CPU.RegisterInterrupt(InterruptLCDStat)
@@ -574,6 +590,7 @@ func (cons *Console) Step() int {
 				cons.APU.Tick(1)
 				cons.DMA.Tick(1)
 				cons.timer.Tick(1)
+				cons.serial.Tick(1)
 				totTicks += 1
 			}
 		}
@@ -601,6 +618,7 @@ func (cons *Console) Step() int {
 		cons.DMA.Tick(cpuTicks)
 		cons.timer.Tick(cpuTicks)
 		cons.Input.Tick(cpuTicks)
+		cons.serial.Tick(cpuTicks)
 
 		totTicks += cpuTicks
 		prevTicks = cpuTicks
