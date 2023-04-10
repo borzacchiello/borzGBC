@@ -93,8 +93,8 @@ func (cons *Console) Load(decoder *gob.Decoder) {
 	cons.Input.Load(decoder)
 }
 
-func (cons *Console) SaveState() error {
-	stateFilename := cons.Cart.filepath + ".state"
+func (cons *Console) SaveState(n int) error {
+	stateFilename := cons.Cart.filepath + fmt.Sprintf(".state.%d", n)
 	f, err := os.Create(stateFilename)
 	if err != nil {
 		return err
@@ -106,8 +106,8 @@ func (cons *Console) SaveState() error {
 	return nil
 }
 
-func (cons *Console) LoadState() error {
-	stateFilename := cons.Cart.filepath + ".state"
+func (cons *Console) LoadState(n int) error {
+	stateFilename := cons.Cart.filepath + fmt.Sprintf(".state.%d", n)
 	f, err := os.Open(stateFilename)
 	if err != nil {
 		return err

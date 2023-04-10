@@ -31,7 +31,7 @@ type SDLPlugin struct {
 	soundBuffer    []byte
 	soundBufferIdx int
 
-	fastMode bool
+	fastMode int
 	slowMode bool
 }
 
@@ -45,7 +45,7 @@ func MakeSDLPlugin(scale int) (*SDLPlugin, error) {
 		width:    160,
 		height:   144,
 		scale:    scale,
-		fastMode: false,
+		fastMode: 0,
 		slowMode: false,
 	}
 
@@ -190,12 +190,23 @@ func (pl *SDLPlugin) CommitScreen() {
 
 func (pl *SDLPlugin) setTitle() {
 	title := "BorzGBC"
-	if pl.fastMode {
-		title += " - FAST"
+	if pl.fastMode > 0 {
+		title += fmt.Sprintf(" - fast x%d", pow2(pl.fastMode))
 	} else if pl.slowMode {
 		title += " - SLOW"
 	}
 	pl.window.SetTitle(title)
+}
+
+func pow2(n int) int {
+	if n == 0 {
+		return 1
+	}
+	result := 2
+	for i := 2; i <= n; i++ {
+		result *= 2
+	}
+	return result
 }
 
 func (pl *SDLPlugin) Run(console *gbc.Console) error {
@@ -215,18 +226,20 @@ func (pl *SDLPlugin) Run(console *gbc.Console) error {
 				switch keyCode {
 				case sdl.K_q:
 					running = false
-				case sdl.K_F1:
+				case sdl.K_F1, sdl.K_F2, sdl.K_F3, sdl.K_F4:
 					if t.State == sdl.PRESSED {
-						err := console.SaveState()
+						n := int(keyCode - sdl.K_F1 + 1)
+						err := console.SaveState(n)
 						if err != nil {
 							pl.DisplayNotification("error while saving state")
 						} else {
 							pl.DisplayNotification("state saved")
 						}
 					}
-				case sdl.K_F8:
+				case sdl.K_F5, sdl.K_F6, sdl.K_F7, sdl.K_F8:
+					n := int(keyCode - sdl.K_F5 + 1)
 					if t.State == sdl.PRESSED {
-						err := console.LoadState()
+						err := console.LoadState(n)
 						if err != nil {
 							pl.DisplayNotification("error while loading state")
 						} else {
@@ -236,13 +249,11 @@ func (pl *SDLPlugin) Run(console *gbc.Console) error {
 				case sdl.K_f:
 					if t.State == sdl.PRESSED {
 						console.CPUFreq = gbc.GBCPU_FREQ
-						if !pl.fastMode {
-							console.CPUFreq = gbc.GBCPU_FREQ * 2
-						}
+						pl.fastMode = (pl.fastMode + 1) % 4
+						console.CPUFreq = gbc.GBCPU_FREQ * pow2(pl.fastMode)
 						pl.slowMode = false
-						pl.fastMode = !pl.fastMode
-						if pl.fastMode {
-							pl.DisplayNotification("fast mode")
+						if pl.fastMode > 0 {
+							pl.DisplayNotification(fmt.Sprintf("fast mode x%d", pow2(pl.fastMode)))
 						} else {
 							pl.DisplayNotification("normal mode")
 						}
@@ -254,7 +265,7 @@ func (pl *SDLPlugin) Run(console *gbc.Console) error {
 						if !pl.slowMode {
 							console.CPUFreq = gbc.GBCPU_FREQ / 2
 						}
-						pl.fastMode = false
+						pl.fastMode = 0
 						pl.slowMode = !pl.slowMode
 						if pl.slowMode {
 							pl.DisplayNotification("slow mode")
@@ -355,7 +366,9 @@ func (pl *SDLPlugin) Run(console *gbc.Console) error {
 				sdl.Delay(80)
 			}
 		} else {
-			fmt.Println("Emulation is too slow")
+			if console.Verbose {
+				fmt.Println("Emulation is too slow")
+			}
 		}
 	}
 	return nil
