@@ -48,7 +48,7 @@ The keymappings are the following:
 - https://www.zilog.com/docs/z80/um0080.pdf
 
 ### Credits
-- The APU implementation adapted from [goboy](https://github.com/Humpheh/goboy) emulator
+- The APU implementation is taken from [goboy](https://github.com/Humpheh/goboy) emulator
 
 ### Todo
 - Serial Data Transfer
