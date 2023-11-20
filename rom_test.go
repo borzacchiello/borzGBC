@@ -37,6 +37,7 @@ func runRomTest(t *testing.T, test string, frames int) {
 	}
 	defer console.Destroy()
 
+	console.PPU.GBPalette = gbc.GB_PALETTE_GREY
 	for console.PPU.FrameCount < frames {
 		console.Step()
 	}

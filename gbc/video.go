@@ -40,6 +40,11 @@ const (
 	SPRITE_BYTES   = 4
 )
 
+const (
+	GB_PALETTE_GREY  = 1
+	GB_PALETTE_GREEN = 2
+)
+
 type PixelInfo struct {
 	isNotTransparent bool
 	bgAttrBitNotSet  bool
@@ -113,6 +118,8 @@ type Ppu struct {
 	BGP             uint8
 	OBP0, OBP1      uint8
 	WindowScanline  uint8
+
+	GBPalette uint8
 
 	// A clone of the screen
 	screen [SCREEN_WIDTH][SCREEN_HEIGHT]PixelInfo
@@ -249,9 +256,10 @@ func (ppu *Ppu) coincidenceInterrupt() bool {
 
 func MakePpu(GBC *Console, frontend Frontend) *Ppu {
 	ppu := &Ppu{
-		frontend: frontend,
-		GBC:      GBC,
-		Mode:     ACCESS_OAM,
+		frontend:  frontend,
+		GBC:       GBC,
+		Mode:      ACCESS_OAM,
+		GBPalette: GB_PALETTE_GREEN,
 	}
 	return ppu
 }
@@ -377,23 +385,14 @@ func (ppu *Ppu) setCoincidenceFlag(value bool) {
 	}
 }
 
-func getRGBFromColor(c uint8) uint32 {
-	switch c {
-	case 0:
-		// White
-		return 0xFFFFFFFF
-	case 1:
-		// Light Grey
-		return 0xAAAAAAFF
-	case 2:
-		// Dark Grey
-		return 0x555555FF
-	case 3:
-		// Black
-		return 0x000000FF
-	default:
-		panic("getRGBFromColor(): invalid color")
+func getRGBFromColor(c uint8, palette uint8) uint32 {
+	paletteGrey := []uint32{0xFFFFFFFF, 0xAAAAAAFF, 0x555555FF, 0x000000FF}
+	paletteGreen := []uint32{0xe0f8d0ff, 0x88c070ff, 0x346856ff, 0x081820ff}
+
+	if palette == GB_PALETTE_GREY {
+		return paletteGrey[c]
 	}
+	return paletteGreen[c]
 }
 
 func (ppu *Ppu) loadPalette(reg uint8) Palette {
@@ -404,10 +403,10 @@ func (ppu *Ppu) loadPalette(reg uint8) Palette {
 	c3 = (reg >> 6) & 3
 
 	return Palette{colors: [4]uint32{
-		getRGBFromColor(c0),
-		getRGBFromColor(c1),
-		getRGBFromColor(c2),
-		getRGBFromColor(c3)}}
+		getRGBFromColor(c0, ppu.GBPalette),
+		getRGBFromColor(c1, ppu.GBPalette),
+		getRGBFromColor(c2, ppu.GBPalette),
+		getRGBFromColor(c3, ppu.GBPalette)}}
 }
 
 func getRGBFromCRAM(cram []uint8, off int) uint32 {
