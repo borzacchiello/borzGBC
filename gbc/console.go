@@ -28,13 +28,14 @@ type Frontend interface {
 }
 
 type Console struct {
-	Cart  *Cart
-	CPU   *z80cpu.Z80Cpu
-	PPU   *Ppu
-	APU   *Apu
-	DMA   *Dma
-	timer *Timer
-	Input *Joypad
+	Cart   *Cart
+	CPU    *z80cpu.Z80Cpu
+	PPU    *Ppu
+	APU    *Apu
+	DMA    *Dma
+	timer  *Timer
+	Input  *Joypad
+	serial *Serial
 
 	CGBMode bool
 	CPUFreq int
@@ -72,6 +73,7 @@ func (cons *Console) Save(encoder *gob.Encoder) {
 	cons.APU.Save(encoder)
 	cons.DMA.Save(encoder)
 	cons.timer.Save(encoder)
+	// cons.serial.Save(encoder)
 	cons.Input.Save(encoder)
 }
 
@@ -90,6 +92,7 @@ func (cons *Console) Load(decoder *gob.Decoder) {
 	cons.APU.Load(decoder)
 	cons.DMA.Load(decoder)
 	cons.timer.Load(decoder)
+	// cons.serial.Load(decoder)
 	cons.Input.Load(decoder)
 }
 
@@ -123,6 +126,10 @@ func (cons *Console) readIO(addr uint16) uint8 {
 	switch {
 	case addr == 0xFF00:
 		return cons.Input.FrontState.PackButtons()
+	case addr == 0xFF01:
+		return cons.serial.SB
+	case addr == 0xFF02:
+		return cons.serial.SC
 	case addr == 0xFF04:
 		return uint8(cons.timer.DIV >> 8)
 	case addr == 0xFF05:
@@ -238,6 +245,10 @@ func (cons *Console) writeIO(addr uint16, value uint8) {
 	case addr == 0xFF00:
 		cons.Input.FrontState.DirectionSelector = value&(1<<4) == 0
 		cons.Input.FrontState.ActionSelector = value&(1<<5) == 0
+	case addr == 0xFF01:
+		cons.serial.SB = value
+	case addr == 0xFF02:
+		cons.serial.SC = value
 	case addr == 0xFF04:
 		cons.timer.reset()
 	case addr == 0xFF05:
@@ -541,6 +552,7 @@ func MakeConsole(rom_filepath string, frontend Frontend) (*Console, error) {
 	res.CPU = z80cpu.MakeZ80Cpu(res)
 	res.Input = MakeJoypad(res)
 	res.timer = MakeTimer(res)
+	res.serial = MakeSerial(res, "127.0.0.1", 31000)
 
 	res.CPU.RegisterInterrupt(InterruptVBlank)
 	res.CPU.RegisterInterrupt(InterruptLCDStat)
@@ -573,6 +585,7 @@ func (cons *Console) Step() int {
 				cons.PPU.Tick(1)
 				cons.APU.Tick(1)
 				cons.DMA.Tick(1)
+				cons.serial.Tick(1)
 				cons.timer.Tick(1)
 				totTicks += 1
 			}
@@ -600,6 +613,7 @@ func (cons *Console) Step() int {
 		cons.APU.Tick(cpuTicks)
 		cons.DMA.Tick(cpuTicks)
 		cons.timer.Tick(cpuTicks)
+		cons.serial.Tick(cpuTicks)
 		cons.Input.Tick(cpuTicks)
 
 		totTicks += cpuTicks
@@ -638,4 +652,8 @@ func (cons *Console) GetBackgroundMapStr() string {
 		out += "\n"
 	}
 	return out
+}
+
+func (cons *Console) Delete() {
+	cons.serial.Delete()
 }

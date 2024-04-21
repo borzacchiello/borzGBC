@@ -371,5 +371,7 @@ func (pl *SDLPlugin) Run(console *gbc.Console) error {
 			}
 		}
 	}
+
+	console.Delete()
 	return nil
 }
