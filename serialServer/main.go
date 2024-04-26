@@ -1,20 +1,13 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"net"
 	"os"
 )
 
-func main() {
-	listen, err := net.Listen("tcp", "127.0.0.1:31000")
-	if err != nil {
-		log.Fatal(err)
-		os.Exit(1)
-	}
-	// close listener
-	defer listen.Close()
+func listenLoop(listen net.Listener) {
+	log.Printf("waiting for connections!")
 
 	conn1, err := listen.Accept()
 	if err != nil {
@@ -29,37 +22,47 @@ func main() {
 	}
 	log.Printf("%s connected...", conn2.RemoteAddr().String())
 
-	log.Printf("Both connections, ready to dance!")
-	recvBuf1 := make([]byte, 2)
-	recvBuf2 := make([]byte, 2)
+	log.Printf("both connected!")
+	go func() {
+		recvBuf := make([]byte, 1024)
+		for {
+			n, err := conn1.Read(recvBuf)
+			if err != nil {
+				break
+			}
+			_, err = conn2.Write(recvBuf[:n])
+			if err != nil {
+				break
+			}
+		}
+		conn2.Close()
+	}()
+
+	recvBuf := make([]byte, 1024)
 	for {
-		_, err := conn1.Read(recvBuf1)
+		n, err := conn2.Read(recvBuf)
 		if err != nil {
 			break
 		}
-		_, err = conn2.Read(recvBuf2)
+		_, err = conn1.Write(recvBuf[:n])
 		if err != nil {
 			break
 		}
-		if (recvBuf1[1]&0x80 == 0x80 && recvBuf2[1]&0x80 == 0x80) && recvBuf1[1]&1 != recvBuf2[1]&1 {
-			fmt.Printf("[+] sending %04x <-> %04x\n", recvBuf1, recvBuf2)
-			_, err = conn1.Write([]byte{1, recvBuf2[0]})
-			if err != nil {
-				break
-			}
-			_, err = conn2.Write([]byte{1, recvBuf1[0]})
-			if err != nil {
-				break
-			}
-		} else {
-			_, err = conn1.Write([]byte{0, 0})
-			if err != nil {
-				break
-			}
-			_, err = conn2.Write([]byte{0, 0})
-			if err != nil {
-				break
-			}
-		}
+	}
+	conn1.Close()
+
+	log.Printf("bye!")
+}
+
+func main() {
+	listen, err := net.Listen("tcp", "127.0.0.1:31000")
+	if err != nil {
+		log.Fatal(err)
+		os.Exit(1)
+	}
+	defer listen.Close()
+
+	for {
+		listenLoop(listen)
 	}
 }

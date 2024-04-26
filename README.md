@@ -46,6 +46,7 @@ The keymappings are the following:
 ### Documentation
 - https://gbdev.io/pandocs
 - https://www.zilog.com/docs/z80/um0080.pdf
+- https://gbdev.gg8.se/wiki/articles/Serial_Communication_(Link_Cable)_Tutorial
 
 ### Credits
 - The APU implementation is taken from [goboy](https://github.com/Humpheh/goboy) emulator

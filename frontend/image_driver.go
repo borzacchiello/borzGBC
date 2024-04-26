@@ -53,3 +53,7 @@ func (pl *ImageVideoDriver) NotifyAudioSample(l, r int8) {
 func (pl *ImageVideoDriver) GetCurrentImage() *image.RGBA {
 	return pl.frontImg
 }
+
+func (pl *ImageVideoDriver) ExchangeSerial(sb, sc uint8) (uint8, uint8) {
+	return 0, 0
+}

@@ -25,6 +25,7 @@ type Frontend interface {
 	NotifyAudioSample(l, r int8)
 	SetPixel(x, y int, color uint32)
 	CommitScreen()
+	ExchangeSerial(sb, sc uint8) (uint8, uint8)
 }
 
 type Console struct {
@@ -73,7 +74,7 @@ func (cons *Console) Save(encoder *gob.Encoder) {
 	cons.APU.Save(encoder)
 	cons.DMA.Save(encoder)
 	cons.timer.Save(encoder)
-	// cons.serial.Save(encoder)
+	cons.serial.Save(encoder)
 	cons.Input.Save(encoder)
 }
 
@@ -92,12 +93,12 @@ func (cons *Console) Load(decoder *gob.Decoder) {
 	cons.APU.Load(decoder)
 	cons.DMA.Load(decoder)
 	cons.timer.Load(decoder)
-	// cons.serial.Load(decoder)
+	cons.serial.Load(decoder)
 	cons.Input.Load(decoder)
 }
 
 func (cons *Console) SaveState(n int) error {
-	stateFilename := cons.Cart.filepath + fmt.Sprintf(".state.%d", n)
+	stateFilename := cons.Cart.Filepath + fmt.Sprintf(".state.%d", n)
 	f, err := os.Create(stateFilename)
 	if err != nil {
 		return err
@@ -110,7 +111,7 @@ func (cons *Console) SaveState(n int) error {
 }
 
 func (cons *Console) LoadState(n int) error {
-	stateFilename := cons.Cart.filepath + fmt.Sprintf(".state.%d", n)
+	stateFilename := cons.Cart.Filepath + fmt.Sprintf(".state.%d", n)
 	f, err := os.Open(stateFilename)
 	if err != nil {
 		return err
@@ -125,7 +126,7 @@ func (cons *Console) LoadState(n int) error {
 func (cons *Console) readIO(addr uint16) uint8 {
 	switch {
 	case addr == 0xFF00:
-		return cons.Input.FrontState.PackButtons()
+		return cons.Input.PackButtons()
 	case addr == 0xFF01:
 		return cons.serial.SB
 	case addr == 0xFF02:
@@ -243,8 +244,8 @@ func (cons *Console) writeIO(addr uint16, value uint8) {
 	cons.IOMem[addr&0xFF] = value
 	switch {
 	case addr == 0xFF00:
-		cons.Input.FrontState.DirectionSelector = value&(1<<4) == 0
-		cons.Input.FrontState.ActionSelector = value&(1<<5) == 0
+		cons.Input.DirectionSelector = value&(1<<4) == 0
+		cons.Input.ActionSelector = value&(1<<5) == 0
 	case addr == 0xFF01:
 		cons.serial.SB = value
 	case addr == 0xFF02:
@@ -479,7 +480,7 @@ func loadBoot(cart *Cart) ([]byte, error) {
 }
 
 func loadSav(cart *Cart) error {
-	savFilename := cart.filepath + ".sav"
+	savFilename := cart.Filepath + ".sav"
 	data, err := os.ReadFile(savFilename)
 	if err != nil {
 		// No save file
@@ -502,7 +503,7 @@ func storeSav(cart *Cart) error {
 		return nil
 	}
 
-	savFilename := cart.filepath + ".sav"
+	savFilename := cart.Filepath + ".sav"
 	f, err := os.Create(savFilename)
 	if err != nil {
 		return err
@@ -552,7 +553,7 @@ func MakeConsole(rom_filepath string, frontend Frontend) (*Console, error) {
 	res.CPU = z80cpu.MakeZ80Cpu(res)
 	res.Input = MakeJoypad(res)
 	res.timer = MakeTimer(res)
-	res.serial = MakeSerial(res, "127.0.0.1", 31000)
+	res.serial = MakeSerial(res, frontend)
 
 	res.CPU.RegisterInterrupt(InterruptVBlank)
 	res.CPU.RegisterInterrupt(InterruptLCDStat)
@@ -573,53 +574,64 @@ func (cons *Console) Destroy() error {
 
 var prevTicks int = 0
 
+func (cons *Console) TickComponents(cpuTicks int) {
+	cons.PPU.Tick(cpuTicks)
+	cons.APU.Tick(cpuTicks)
+	cons.DMA.Tick(cpuTicks)
+	cons.timer.Tick(cpuTicks)
+	cons.serial.Tick(cpuTicks)
+	cons.Input.Tick(cpuTicks)
+}
+
+func (cons *Console) innerStep() int {
+	totTicks := 0
+	if !cons.CPU.IsHalted {
+		for cons.DMA.HdmaInProgress() {
+			// The CPU is busy performing the HDMA
+			cons.TickComponents(1)
+			totTicks += 1
+		}
+	}
+
+	if cons.PrintDebug {
+		var cpu *z80cpu.Z80Cpu = cons.CPU
+		_, disas_str := cons.CPU.Disas.DisassembleOneFromCPU(cons.CPU)
+
+		fmt.Fprintf(os.Stderr, "%s |CYC=%d PC=%04x SP=%04x A=%02x B=%02x C=%02x D=%02x E=%02x H=%02x L=%02x F=%02x IV=%02x PPUC=%04d LY=%02x LYC=%02x STAT=%02x LCDC=%02x SCX=%02x SCY=%02x WX=%02x WY=%02x MEM=%02x\n",
+			disas_str, prevTicks, cpu.PC, cpu.SP, cpu.A, cpu.B, cpu.C, cpu.D, cpu.E, cpu.H, cpu.L, cpu.PackFlags(), cpu.IE&cpu.IF, cons.PPU.CycleCount, cons.PPU.LY, cons.PPU.LYC, cons.PPU.STAT, cons.PPU.LCDC, cons.PPU.SCX, cons.PPU.SCY, cons.PPU.WX, cons.PPU.WY, cons.Read(cpu.SP))
+	}
+
+	cpuTicks := cons.CPU.ExecOne()
+	if cons.CPU.IsStopped {
+		if cons.CGBMode && cons.SpeedSwitch&1 == 1 {
+			cons.SpeedSwitch = (cons.SpeedSwitch ^ 0x80) & 0x80
+			cons.DoubleSpeedMode = !cons.DoubleSpeedMode
+			cons.CPU.IsStopped = false
+			// FIXME: is this correct !? It should be totTicks+cpuTicks
+			return totTicks
+		}
+	}
+
+	cons.TickComponents(cpuTicks)
+	totTicks += cpuTicks
+	return totTicks
+}
+
 func (cons *Console) Step() int {
 	prevFrame := cons.PPU.FrameCount
 
 	totTicks := 0
 	for cons.PPU.FrameCount == prevFrame {
-
-		if !cons.CPU.IsHalted {
-			for cons.DMA.HdmaInProgress() {
-				// The CPU is busy performing the HDMA
-				cons.PPU.Tick(1)
-				cons.APU.Tick(1)
-				cons.DMA.Tick(1)
-				cons.serial.Tick(1)
-				cons.timer.Tick(1)
-				totTicks += 1
-			}
-		}
-
-		if cons.PrintDebug {
-			var cpu *z80cpu.Z80Cpu = cons.CPU
-			_, disas_str := cons.CPU.Disas.DisassembleOneFromCPU(cons.CPU)
-
-			fmt.Fprintf(os.Stderr, "%s |CYC=%d PC=%04x SP=%04x A=%02x B=%02x C=%02x D=%02x E=%02x H=%02x L=%02x F=%02x IV=%02x PPUC=%04d LY=%02x LYC=%02x STAT=%02x LCDC=%02x SCX=%02x SCY=%02x WX=%02x WY=%02x MEM=%02x\n",
-				disas_str, prevTicks, cpu.PC, cpu.SP, cpu.A, cpu.B, cpu.C, cpu.D, cpu.E, cpu.H, cpu.L, cpu.PackFlags(), cpu.IE&cpu.IF, cons.PPU.CycleCount, cons.PPU.LY, cons.PPU.LYC, cons.PPU.STAT, cons.PPU.LCDC, cons.PPU.SCX, cons.PPU.SCY, cons.PPU.WX, cons.PPU.WY, cons.Read(cpu.SP))
-		}
-
-		cpuTicks := cons.CPU.ExecOne()
-		if cons.CPU.IsStopped {
-			if cons.CGBMode && cons.SpeedSwitch&1 == 1 {
-				cons.SpeedSwitch = (cons.SpeedSwitch ^ 0x80) & 0x80
-				cons.DoubleSpeedMode = !cons.DoubleSpeedMode
-				cons.CPU.IsStopped = false
-				continue
-			}
-		}
-
-		cons.PPU.Tick(cpuTicks)
-		cons.APU.Tick(cpuTicks)
-		cons.DMA.Tick(cpuTicks)
-		cons.timer.Tick(cpuTicks)
-		cons.serial.Tick(cpuTicks)
-		cons.Input.Tick(cpuTicks)
-
-		totTicks += cpuTicks
-		prevTicks = cpuTicks
+		totTicks += cons.innerStep()
 	}
+	return totTicks
+}
 
+func (cons *Console) StepUntil(condition func(*Console) bool) int {
+	totTicks := 0
+	for !condition(cons) {
+		totTicks += cons.innerStep()
+	}
 	return totTicks
 }
 
@@ -652,8 +664,4 @@ func (cons *Console) GetBackgroundMapStr() string {
 		out += "\n"
 	}
 	return out
-}
-
-func (cons *Console) Delete() {
-	cons.serial.Delete()
 }

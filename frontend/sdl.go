@@ -2,7 +2,15 @@ package frontend
 
 import (
 	"borzGBC/gbc"
+	"bytes"
+	"encoding/binary"
+	"errors"
 	"fmt"
+	"io"
+	"log"
+	"net"
+	"os"
+	"sync/atomic"
 	"time"
 
 	"github.com/veandco/go-sdl2/sdl"
@@ -13,6 +21,111 @@ var (
 	SDL_WHITE = sdl.Color{R: 255, G: 255, B: 255, A: 0}
 	SDL_BLACK = sdl.Color{R: 0, G: 0, B: 0, A: 0}
 )
+
+// Number of frames after which the inputs will be synced (in network serial mode)
+var SERIAL_FRAME_SYNC = 3
+
+// If true, show the companion screen (only for debug purposes)
+var SHOW_SERIAL_COMPANION = false
+
+type serialSync struct {
+	companion *gbc.Console
+	remote    net.Conn
+
+	surface  *sdl.Surface
+	renderer *sdl.Renderer
+
+	running          atomic.Bool
+	rxSB, rxSC       chan uint8
+	txSB, txSC       chan uint8
+	txInput, rxInput chan uint8
+}
+
+func makeSerialSync() *serialSync {
+	var renderer *sdl.Renderer = nil
+	var surface *sdl.Surface = nil
+
+	if SHOW_SERIAL_COMPANION {
+		window, renderer, err := sdl.CreateWindowAndRenderer(
+			int32(160), int32(144), 0)
+		if err != nil {
+			panic(err)
+		}
+		window.SetTitle("COMPANION")
+		surface, err = sdl.CreateRGBSurface(
+			0, int32(160), int32(144), 32, 0xFF000000, 0x00FF0000, 0x0000FF00, 0x000000FF)
+		if err != nil {
+			panic(err)
+		}
+
+		renderer.SetDrawColor(0, 0, 0, 255)
+		renderer.Clear()
+	}
+
+	res := &serialSync{
+		companion: nil,
+		remote:    nil,
+		surface:   surface,
+		renderer:  renderer,
+		running:   atomic.Bool{},
+		rxSB:      make(chan uint8),
+		rxSC:      make(chan uint8),
+		txSB:      make(chan uint8),
+		txSC:      make(chan uint8),
+		txInput:   make(chan uint8),
+		rxInput:   make(chan uint8),
+	}
+	res.running.Store(true)
+	return res
+}
+
+func (s *serialSync) NotifyAudioSample(l, r int8) {}
+func (s *serialSync) SetPixel(x, y int, c uint32) {
+	if SHOW_SERIAL_COMPANION {
+		var r, g, b, a uint8
+		r = uint8((c >> 24) & 0xFF)
+		g = uint8((c >> 16) & 0xFF)
+		b = uint8((c >> 8) & 0xFF)
+		a = uint8(c & 0xFF)
+
+		pixels := s.surface.Pixels()
+		pixels[y*int(s.surface.Pitch)+x*int(s.surface.BytesPerPixel())+0] = a
+		pixels[y*int(s.surface.Pitch)+x*int(s.surface.BytesPerPixel())+1] = b
+		pixels[y*int(s.surface.Pitch)+x*int(s.surface.BytesPerPixel())+2] = g
+		pixels[y*int(s.surface.Pitch)+x*int(s.surface.BytesPerPixel())+3] = r
+	}
+}
+func (pl *serialSync) CommitScreen() {
+	if SHOW_SERIAL_COMPANION {
+		texture, err := pl.renderer.CreateTextureFromSurface(pl.surface)
+		if err != nil {
+			fmt.Println("Unable to create texture while rendering")
+			return
+		}
+		defer texture.Destroy()
+
+		rect := sdl.Rect{
+			X: 0,
+			Y: 0,
+			W: int32(160),
+			H: int32(144)}
+		pl.renderer.Copy(texture, nil, &rect)
+		pl.renderer.Present()
+		pl.renderer.SetDrawColor(0xff, 0xff, 0xff, 0xff)
+		pl.renderer.Clear()
+	}
+}
+
+func (s *serialSync) ExchangeSerial(sb, sc uint8) (uint8, uint8) {
+	if s.running.Load() {
+		txSB := <-s.txSB
+		txSC := <-s.txSC
+		s.rxSB <- sb
+		s.rxSC <- sc
+		return txSB, txSC
+	}
+	return 0, 0
+}
 
 type SDLPlugin struct {
 	window        *sdl.Window
@@ -33,6 +146,8 @@ type SDLPlugin struct {
 
 	fastMode int
 	slowMode bool
+
+	serial *serialSync
 }
 
 func MakeSDLPlugin(scale int) (*SDLPlugin, error) {
@@ -97,6 +212,17 @@ func MakeSDLPlugin(scale int) (*SDLPlugin, error) {
 	s.Free()
 
 	return pl, nil
+}
+
+func (pl *SDLPlugin) ExchangeSerial(sb, sc uint8) (uint8, uint8) {
+	if pl.serial != nil && pl.serial.running.Load() {
+		pl.serial.txSB <- sb
+		pl.serial.txSC <- sc
+		rxSB := <-pl.serial.rxSB
+		rxSC := <-pl.serial.rxSC
+		return rxSB, rxSC
+	}
+	return 0, 0
 }
 
 func (pl *SDLPlugin) NotifyAudioSample(l, r int8) {
@@ -209,7 +335,182 @@ func pow2(n int) int {
 	return result
 }
 
-func (pl *SDLPlugin) Run(console *gbc.Console) error {
+func (pl *SDLPlugin) initializeSerialServer(console *gbc.Console, serialServer string) error {
+	addr, err := net.ResolveTCPAddr("tcp4", serialServer)
+	if err != nil {
+		return err
+	}
+	conn, err := net.DialTCP("tcp4", nil, addr)
+	if err != nil {
+		return err
+	}
+
+	// handshake
+	handshakeVal := []byte("serialgbc")
+	_, err = conn.Write(handshakeVal)
+	if err != nil {
+		return err
+	}
+	handshake, err := io.ReadAll(io.LimitReader(conn, int64(len(handshakeVal))))
+	if err != nil {
+		return err
+	}
+	if !bytes.Equal(handshake, handshakeVal) {
+		return fmt.Errorf("invalid handshake")
+	}
+
+	// send my ROM
+	romData, err := os.ReadFile(console.Cart.Filepath)
+	if err != nil {
+		return err
+	}
+	romDataSize := uint32(len(romData))
+	romDataSizeBuf := make([]byte, 4)
+	binary.BigEndian.PutUint32(romDataSizeBuf, romDataSize)
+	_, err = conn.Write(romDataSizeBuf)
+	if err != nil {
+		return err
+	}
+	_, err = conn.Write(romData)
+	if err != nil {
+		return err
+	}
+
+	// receive peer ROM
+	romDataSizeBuf, err = io.ReadAll(io.LimitReader(conn, 4))
+	if err != nil {
+		return err
+	}
+	romDataSize = binary.BigEndian.Uint32(romDataSizeBuf)
+	romData, err = io.ReadAll(io.LimitReader(conn, int64(romDataSize)))
+	if err != nil {
+		return err
+	}
+	f, err := os.CreateTemp("", "borzgbc-companion-rom-")
+	if err != nil {
+		return err
+	}
+	_, err = f.Write(romData)
+	if err != nil {
+		return err
+	}
+	f.Close()
+
+	// send my SAV (if any)
+	var savDataSize uint32
+	savData, err := os.ReadFile(console.Cart.Filepath + ".sav")
+	if err == nil {
+		savDataSize = uint32(len(savData))
+	} else {
+		if errors.Is(err, os.ErrNotExist) {
+			savDataSize = 0
+		} else {
+			return err
+		}
+	}
+	savDataSizeBuf := make([]byte, 4)
+	binary.BigEndian.PutUint32(savDataSizeBuf, savDataSize)
+	_, err = conn.Write(savDataSizeBuf)
+	if err != nil {
+		return err
+	}
+	if savDataSize > 0 {
+		_, err = conn.Write(savData)
+		if err != nil {
+			return err
+		}
+	}
+
+	// receive peer SAV (if any)
+	savDataSizeBuf, err = io.ReadAll(io.LimitReader(conn, 4))
+	if err != nil {
+		return err
+	}
+	savDataSize = binary.BigEndian.Uint32(savDataSizeBuf)
+	if savDataSize > 0 {
+		savData, err = io.ReadAll(io.LimitReader(conn, int64(savDataSize)))
+		if err != nil {
+			return err
+		}
+		fSav, err := os.Create(f.Name() + ".sav")
+		if err != nil {
+			return err
+		}
+		_, err = fSav.Write(savData)
+		if err != nil {
+			return err
+		}
+		fSav.Close()
+	}
+
+	// initialize peer console
+	pl.serial = makeSerialSync()
+	pl.serial.remote = conn
+	pl.serial.companion, err = gbc.MakeConsole(f.Name(), pl.serial)
+	if err != nil {
+		return err
+	}
+
+	// start the network sync loop
+	go func() {
+		for pl.serial.running.Load() {
+			rawRXData, err := io.ReadAll(io.LimitReader(pl.serial.remote, 1))
+			if err != nil || len(rawRXData) == 0 {
+				break
+			}
+			pl.serial.rxInput <- rawRXData[0]
+		}
+		close(pl.serial.rxInput)
+		pl.serial.remote.Close()
+		pl.serial.running.Store(false)
+	}()
+	go func() {
+		for pl.serial.running.Load() {
+			toSend := <-pl.serial.txInput
+			_, err := pl.serial.remote.Write([]byte{toSend})
+			if err != nil {
+				break
+			}
+		}
+		pl.serial.remote.Close()
+		pl.serial.running.Store(false)
+	}()
+
+	// start the emulator
+	go func() {
+		syncCount := 0
+		for pl.serial.running.Load() {
+			if syncCount == SERIAL_FRAME_SYNC {
+				pl.serial.companion.Input.BackState.Unserialize(<-pl.serial.rxInput)
+				syncCount = 0
+			} else {
+				syncCount += 1
+			}
+			pl.serial.companion.Step()
+		}
+		// read remaining data from channels...
+		_ = <-pl.serial.txSB + <-pl.serial.txSC
+
+		close(pl.serial.rxSB)
+		close(pl.serial.rxSC)
+		pl.serial.remote.Close()
+		pl.serial.running.Store(false)
+	}()
+	return nil
+}
+
+func (pl *SDLPlugin) Run(console *gbc.Console, serialServer string) error {
+	// serial server
+	if serialServer != "" {
+		if err := pl.initializeSerialServer(console, serialServer); err != nil {
+			return err
+		}
+	}
+
+	syncCount := 0
+	currentInput := gbc.JoypadState{}
+	freezedInput := gbc.JoypadState{}
+
 	running := true
 	for running {
 		start := time.Now()
@@ -227,7 +528,7 @@ func (pl *SDLPlugin) Run(console *gbc.Console) error {
 				case sdl.K_q:
 					running = false
 				case sdl.K_F1, sdl.K_F2, sdl.K_F3, sdl.K_F4:
-					if t.State == sdl.PRESSED {
+					if t.State == sdl.PRESSED && pl.serial == nil {
 						n := int(keyCode - sdl.K_F1 + 1)
 						err := console.SaveState(n)
 						if err != nil {
@@ -238,7 +539,7 @@ func (pl *SDLPlugin) Run(console *gbc.Console) error {
 					}
 				case sdl.K_F5, sdl.K_F6, sdl.K_F7, sdl.K_F8:
 					n := int(keyCode - sdl.K_F5 + 1)
-					if t.State == sdl.PRESSED {
+					if t.State == sdl.PRESSED && pl.serial == nil {
 						err := console.LoadState(n)
 						if err != nil {
 							pl.DisplayNotification("error while loading state")
@@ -247,7 +548,7 @@ func (pl *SDLPlugin) Run(console *gbc.Console) error {
 						}
 					}
 				case sdl.K_f:
-					if t.State == sdl.PRESSED {
+					if t.State == sdl.PRESSED && pl.serial == nil {
 						console.CPUFreq = gbc.GBCPU_FREQ
 						pl.fastMode = (pl.fastMode + 1) % 4
 						console.CPUFreq = gbc.GBCPU_FREQ * pow2(pl.fastMode)
@@ -260,7 +561,7 @@ func (pl *SDLPlugin) Run(console *gbc.Console) error {
 						pl.setTitle()
 					}
 				case sdl.K_g:
-					if t.State == sdl.PRESSED {
+					if t.State == sdl.PRESSED && pl.serial == nil {
 						console.CPUFreq = gbc.GBCPU_FREQ
 						if !pl.slowMode {
 							console.CPUFreq = gbc.GBCPU_FREQ / 2
@@ -294,42 +595,42 @@ func (pl *SDLPlugin) Run(console *gbc.Console) error {
 						pl.DisplayNotification(console.APU.GetVolumeString())
 					}
 				// Debug Flags
-				case sdl.K_1:
-					if t.State == sdl.PRESSED {
-						console.APU.ToggleSoundChannel(1)
-						if console.APU.IsChMuted(1) {
-							pl.DisplayNotification("ch1 muted")
-						} else {
-							pl.DisplayNotification("ch1 unmuted")
-						}
-					}
-				case sdl.K_2:
-					if t.State == sdl.PRESSED {
-						console.APU.ToggleSoundChannel(2)
-						if console.APU.IsChMuted(2) {
-							pl.DisplayNotification("ch2 muted")
-						} else {
-							pl.DisplayNotification("ch2 unmuted")
-						}
-					}
-				case sdl.K_3:
-					if t.State == sdl.PRESSED {
-						console.APU.ToggleSoundChannel(3)
-						if console.APU.IsChMuted(3) {
-							pl.DisplayNotification("ch3 muted")
-						} else {
-							pl.DisplayNotification("ch3 unmuted")
-						}
-					}
-				case sdl.K_4:
-					if t.State == sdl.PRESSED {
-						console.APU.ToggleSoundChannel(4)
-						if console.APU.IsChMuted(4) {
-							pl.DisplayNotification("ch4 muted")
-						} else {
-							pl.DisplayNotification("ch4 unmuted")
-						}
-					}
+				// case sdl.K_1:
+				// 	if t.State == sdl.PRESSED {
+				// 		console.APU.ToggleSoundChannel(1)
+				// 		if console.APU.IsChMuted(1) {
+				// 			pl.DisplayNotification("ch1 muted")
+				// 		} else {
+				// 			pl.DisplayNotification("ch1 unmuted")
+				// 		}
+				// 	}
+				// case sdl.K_2:
+				// 	if t.State == sdl.PRESSED {
+				// 		console.APU.ToggleSoundChannel(2)
+				// 		if console.APU.IsChMuted(2) {
+				// 			pl.DisplayNotification("ch2 muted")
+				// 		} else {
+				// 			pl.DisplayNotification("ch2 unmuted")
+				// 		}
+				// 	}
+				// case sdl.K_3:
+				// 	if t.State == sdl.PRESSED {
+				// 		console.APU.ToggleSoundChannel(3)
+				// 		if console.APU.IsChMuted(3) {
+				// 			pl.DisplayNotification("ch3 muted")
+				// 		} else {
+				// 			pl.DisplayNotification("ch3 unmuted")
+				// 		}
+				// 	}
+				// case sdl.K_4:
+				// 	if t.State == sdl.PRESSED {
+				// 		console.APU.ToggleSoundChannel(4)
+				// 		if console.APU.IsChMuted(4) {
+				// 			pl.DisplayNotification("ch4 muted")
+				// 		} else {
+				// 			pl.DisplayNotification("ch4 unmuted")
+				// 		}
+				// 	}
 				// case sdl.K_b:
 				// 	if t.State == sdl.PRESSED {
 				// 		bgmap := console.GetBackgroundMapStr()
@@ -338,26 +639,49 @@ func (pl *SDLPlugin) Run(console *gbc.Console) error {
 
 				// GB Keys
 				case sdl.K_z:
-					console.Input.BackState.A = t.State == sdl.PRESSED
+					currentInput.A = t.State == sdl.PRESSED
 				case sdl.K_x:
-					console.Input.BackState.B = t.State == sdl.PRESSED
+					currentInput.B = t.State == sdl.PRESSED
 				case sdl.K_RETURN:
-					console.Input.BackState.START = t.State == sdl.PRESSED
+					currentInput.START = t.State == sdl.PRESSED
 				case sdl.K_BACKSPACE:
-					console.Input.BackState.SELECT = t.State == sdl.PRESSED
+					currentInput.SELECT = t.State == sdl.PRESSED
 				case sdl.K_UP:
-					console.Input.BackState.UP = t.State == sdl.PRESSED
+					currentInput.UP = t.State == sdl.PRESSED
 				case sdl.K_DOWN:
-					console.Input.BackState.DOWN = t.State == sdl.PRESSED
+					currentInput.DOWN = t.State == sdl.PRESSED
 				case sdl.K_LEFT:
-					console.Input.BackState.LEFT = t.State == sdl.PRESSED
+					currentInput.LEFT = t.State == sdl.PRESSED
 				case sdl.K_RIGHT:
-					console.Input.BackState.RIGHT = t.State == sdl.PRESSED
+					currentInput.RIGHT = t.State == sdl.PRESSED
 				}
 			}
 		}
 
+		if serialServer != "" {
+			if pl.serial.running.Load() {
+				if syncCount == 0 {
+					pl.serial.txInput <- currentInput.Serialize()
+					freezedInput = currentInput
+				} else if syncCount == SERIAL_FRAME_SYNC {
+					syncCount = -1
+					console.Input.BackState = freezedInput
+				}
+				syncCount += 1
+			} else {
+				// serial peer disconnected
+				log.Printf("serial peer disconnected")
+
+				close(pl.serial.txInput)
+				close(pl.serial.txSB)
+				close(pl.serial.txSC)
+				serialServer = ""
+			}
+		} else {
+			console.Input.BackState = currentInput
+		}
 		ticks := console.Step()
+
 		elapsed := time.Since(start)
 		if int(elapsed.Milliseconds()) < console.GetMs(ticks) {
 			sdl.Delay(uint32(console.GetMs(ticks) - int(elapsed.Milliseconds())))
@@ -371,7 +695,5 @@ func (pl *SDLPlugin) Run(console *gbc.Console) error {
 			}
 		}
 	}
-
-	console.Delete()
 	return nil
 }

@@ -27,7 +27,7 @@ type Header struct {
 }
 
 type Cart struct {
-	filepath string
+	Filepath string
 	header   Header
 	ROMBanks [][16384]uint8
 	RAMBanks [][8192]uint8
@@ -94,7 +94,7 @@ func getMapper(cart *Cart) (Mapper, error) {
 
 func LoadCartridge(filepath string) (*Cart, error) {
 	res := &Cart{}
-	res.filepath = filepath
+	res.Filepath = filepath
 
 	f, err := os.Open(filepath)
 	if err != nil {

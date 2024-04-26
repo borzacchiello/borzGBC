@@ -215,7 +215,7 @@ func (m *MBC3Mapper) MapperClose() {
 }
 
 func (m *MBC3Mapper) SaveRTC() {
-	rtcFilename := m.cart.filepath + ".rtc"
+	rtcFilename := m.cart.Filepath + ".rtc"
 	data, err := m.rtc.Marshal()
 	if err != nil {
 		fmt.Printf("unable to store RTC: %s", err)
@@ -229,7 +229,7 @@ func (m *MBC3Mapper) SaveRTC() {
 }
 
 func (m *MBC3Mapper) LoadRTC() {
-	rtcFilename := m.cart.filepath + ".rtc"
+	rtcFilename := m.cart.Filepath + ".rtc"
 	data, err := os.ReadFile(rtcFilename)
 	if err != nil {
 		return
