@@ -11,6 +11,8 @@ type ImageVideoDriver struct {
 	backImg  *image.RGBA
 	frontImg *image.RGBA
 	num      int
+
+	SerialFunction func(sb, sc uint8) (uint8, uint8)
 }
 
 func MkImageVideoDriver() *ImageVideoDriver {
@@ -55,5 +57,8 @@ func (pl *ImageVideoDriver) GetCurrentImage() *image.RGBA {
 }
 
 func (pl *ImageVideoDriver) ExchangeSerial(sb, sc uint8) (uint8, uint8) {
+	if pl.SerialFunction != nil {
+		return pl.SerialFunction(sb, sc)
+	}
 	return 0, 0
 }

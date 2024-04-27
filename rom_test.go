@@ -27,9 +27,10 @@ func imagesAreEqual(img1, img2 image.Image) bool {
 	return true
 }
 
-func runRomTest(t *testing.T, test string, frames int) {
+func runRomTestWithSerial(t *testing.T, test string, frames int, serialFunction func(sb, sc uint8) (uint8, uint8)) {
 	testName := strings.Split(test, ".")[0]
 	pl := frontend.MkImageVideoDriver()
+	pl.SerialFunction = serialFunction
 	console, err := gbc.MakeConsole(fmt.Sprintf("testRoms/%s", test), pl)
 	if err != nil {
 		t.Error("Unable to create console")
@@ -59,6 +60,10 @@ func runRomTest(t *testing.T, test string, frames int) {
 	if !imagesAreEqual(expected, pl.GetCurrentImage()) {
 		t.Fail()
 	}
+}
+
+func runRomTest(t *testing.T, test string, frames int) {
+	runRomTestWithSerial(t, test, frames, nil)
 }
 
 func TestBlargCpuInstrs(t *testing.T) {
@@ -204,4 +209,19 @@ func TestMooneyeIntr_2_0(t *testing.T) {
 func TestMooneyeIntrStatIrq(t *testing.T) {
 	// This fails, but it proceeds further with respect to the previous version
 	runRomTest(t, "Mooneye/interrupts/stat_irq_blocking.gb", 1000)
+}
+
+func TestSerial(t *testing.T) {
+	fistRun := true
+	runRomTestWithSerial(t, "Serial/gb-link.gb", 1000, func(sb, sc uint8) (uint8, uint8) {
+		if sc == 0x80 {
+			if fistRun {
+				fistRun = false
+				return 2, 0x81
+			} else {
+				return 0xaa, 0x81
+			}
+		}
+		return 0, 0
+	})
 }
