@@ -21,13 +21,21 @@ func (t *Timer) Save(encoder *gob.Encoder) {
 	panicIfErr(encoder.Encode(t.timaCounter))
 }
 
-func (t *Timer) Load(decoder *gob.Decoder) {
-	panicIfErr(decoder.Decode(&t.DIV))
-	panicIfErr(decoder.Decode(&t.TIMA))
-	panicIfErr(decoder.Decode(&t.TMA))
-	panicIfErr(decoder.Decode(&t.TAC))
-	panicIfErr(decoder.Decode(&t.divCounter))
-	panicIfErr(decoder.Decode(&t.timaCounter))
+func (t *Timer) Load(decoder *gob.Decoder) error {
+	errs := []error{
+		decoder.Decode(&t.DIV),
+		decoder.Decode(&t.TIMA),
+		decoder.Decode(&t.TMA),
+		decoder.Decode(&t.TAC),
+		decoder.Decode(&t.divCounter),
+		decoder.Decode(&t.timaCounter),
+	}
+	for _, err := range errs {
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func MakeTimer(c *Console) *Timer {

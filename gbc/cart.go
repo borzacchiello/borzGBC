@@ -1,9 +1,9 @@
 package gbc
 
 import (
+	"bytes"
 	"encoding/binary"
 	"encoding/gob"
-	"os"
 )
 
 const HeaderSize = 0x4A
@@ -27,7 +27,6 @@ type Header struct {
 }
 
 type Cart struct {
-	Filepath string
 	header   Header
 	ROMBanks [][16384]uint8
 	RAMBanks [][8192]uint8
@@ -40,9 +39,15 @@ func (cart *Cart) Save(encoder *gob.Encoder) {
 	cart.Map.MapperSave(encoder)
 }
 
-func (cart *Cart) Load(decoder *gob.Decoder) {
-	panicIfErr(decoder.Decode(&cart.RAMBanks))
-	cart.Map.MapperLoad(decoder)
+func (cart *Cart) Load(decoder *gob.Decoder) error {
+	var err error = nil
+	if err = decoder.Decode(&cart.RAMBanks); err != nil {
+		return err
+	}
+	if err = cart.Map.MapperLoad(decoder); err != nil {
+		return err
+	}
+	return nil
 }
 
 type CartError string
@@ -92,22 +97,16 @@ func getMapper(cart *Cart) (Mapper, error) {
 	return nil, CartError("Unexpected CartType")
 }
 
-func LoadCartridge(filepath string) (*Cart, error) {
+func LoadCartridge(rom []byte) (*Cart, error) {
 	res := &Cart{}
-	res.Filepath = filepath
-
-	f, err := os.Open(filepath)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
+	reader := bytes.NewReader(rom)
 
 	// Read Header
-	_, err = f.Seek(0x0100, 0)
+	_, err := reader.Seek(0x0100, 0)
 	if err != nil {
 		return nil, err
 	}
-	err = binary.Read(f, binary.BigEndian, &res.header)
+	err = binary.Read(reader, binary.BigEndian, &res.header)
 	if err != nil {
 		return nil, err
 	}
@@ -127,12 +126,12 @@ func LoadCartridge(filepath string) (*Cart, error) {
 	}
 
 	res.ROMBanks = make([][16384]uint8, numROMBanks)
-	_, err = f.Seek(0, 0)
+	_, err = reader.Seek(0, 0)
 	if err != nil {
 		return nil, err
 	}
 	for i := 0; i < numROMBanks; i++ {
-		num, err := f.Read(res.ROMBanks[i][:])
+		num, err := reader.Read(res.ROMBanks[i][:])
 		if err != nil {
 			return nil, err
 		}
@@ -161,16 +160,12 @@ func LoadCartridge(filepath string) (*Cart, error) {
 	res.RAMBanks = make([][8192]uint8, numRAMBanks)
 
 	// Check if we read the whole file
-	off, err := f.Seek(0, 1)
-	if err != nil {
-		return nil, err
-	}
-	fi, err := f.Stat()
+	off, err := reader.Seek(0, 1)
 	if err != nil {
 		return nil, err
 	}
 
-	if fi.Size() != off {
+	if len(rom) != int(off) {
 		return nil, CartError("Unread data at the end of the cartridge")
 	}
 

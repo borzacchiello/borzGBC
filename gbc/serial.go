@@ -20,10 +20,18 @@ func (s *Serial) Save(encoder *gob.Encoder) {
 	panicIfErr(encoder.Encode(s.SC))
 }
 
-func (s *Serial) Load(decoder *gob.Decoder) {
-	panicIfErr(decoder.Decode(&s.serialCounter))
-	panicIfErr(decoder.Decode(&s.SB))
-	panicIfErr(decoder.Decode(&s.SC))
+func (s *Serial) Load(decoder *gob.Decoder) error {
+	errs := []error{
+		decoder.Decode(&s.serialCounter),
+		decoder.Decode(&s.SB),
+		decoder.Decode(&s.SC),
+	}
+	for _, err := range errs {
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func MakeSerial(c *Console, frontend Frontend) *Serial {

@@ -29,14 +29,22 @@ func (rtc RTC) Save(encoder *gob.Encoder) {
 	panicIfErr(encoder.Encode(rtc.DaysH))
 }
 
-func (rtc RTC) Load(decoder *gob.Decoder) {
-	panicIfErr(decoder.Decode(&rtc.BaseTime))
-	panicIfErr(decoder.Decode(&rtc.HaltTime))
-	panicIfErr(decoder.Decode(&rtc.Seconds))
-	panicIfErr(decoder.Decode(&rtc.Minutes))
-	panicIfErr(decoder.Decode(&rtc.Hours))
-	panicIfErr(decoder.Decode(&rtc.DaysL))
-	panicIfErr(decoder.Decode(&rtc.DaysH))
+func (rtc RTC) Load(decoder *gob.Decoder) error {
+	errs := []error{
+		decoder.Decode(&rtc.BaseTime),
+		decoder.Decode(&rtc.HaltTime),
+		decoder.Decode(&rtc.Seconds),
+		decoder.Decode(&rtc.Minutes),
+		decoder.Decode(&rtc.Hours),
+		decoder.Decode(&rtc.DaysL),
+		decoder.Decode(&rtc.DaysH),
+	}
+	for _, err := range errs {
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func MakeRTC() RTC {

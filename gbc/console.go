@@ -2,10 +2,10 @@ package gbc
 
 import (
 	"borzGBC/z80cpu"
+	"bytes"
 	"encoding/gob"
 	"fmt"
-	"os"
-	"path/filepath"
+	"log"
 )
 
 var InterruptVBlank z80cpu.Z80Interrupt = z80cpu.Z80Interrupt{
@@ -29,6 +29,7 @@ type Frontend interface {
 }
 
 type Console struct {
+	ROM    []byte
 	Cart   *Cart
 	CPU    *z80cpu.Z80Cpu
 	PPU    *Ppu
@@ -78,49 +79,46 @@ func (cons *Console) Save(encoder *gob.Encoder) {
 	cons.Input.Save(encoder)
 }
 
-func (cons *Console) Load(decoder *gob.Decoder) {
-	panicIfErr(decoder.Decode(&cons.IOMem))
-	panicIfErr(decoder.Decode(&cons.HighRAM))
-	panicIfErr(decoder.Decode(&cons.WorkRAM))
-	panicIfErr(decoder.Decode(&cons.RamBank))
-	panicIfErr(decoder.Decode(&cons.SpeedSwitch))
-	panicIfErr(decoder.Decode(&cons.DoubleSpeedMode))
-	panicIfErr(decoder.Decode(&cons.InBootROM))
-	panicIfErr(decoder.Decode(&cons.BootROM))
-	cons.Cart.Load(decoder)
-	cons.CPU.Load(decoder)
-	cons.PPU.Load(decoder)
-	cons.APU.Load(decoder)
-	cons.DMA.Load(decoder)
-	cons.timer.Load(decoder)
-	cons.serial.Load(decoder)
-	cons.Input.Load(decoder)
+func (cons *Console) Load(decoder *gob.Decoder) error {
+	errs := []error{
+		decoder.Decode(&cons.IOMem),
+		decoder.Decode(&cons.HighRAM),
+		decoder.Decode(&cons.WorkRAM),
+		decoder.Decode(&cons.RamBank),
+		decoder.Decode(&cons.SpeedSwitch),
+		decoder.Decode(&cons.DoubleSpeedMode),
+		decoder.Decode(&cons.InBootROM),
+		decoder.Decode(&cons.BootROM),
+		cons.Cart.Load(decoder),
+		cons.CPU.Load(decoder),
+		cons.PPU.Load(decoder),
+		cons.APU.Load(decoder),
+		cons.DMA.Load(decoder),
+		cons.timer.Load(decoder),
+		cons.serial.Load(decoder),
+		cons.Input.Load(decoder),
+	}
+
+	for _, err := range errs {
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
-func (cons *Console) SaveState(n int) error {
-	stateFilename := cons.Cart.Filepath + fmt.Sprintf(".state.%d", n)
-	f, err := os.Create(stateFilename)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	encoder := gob.NewEncoder(f)
+func (cons *Console) SaveState() []byte {
+	buf := make([]byte, 0)
+	writer := bytes.NewBuffer(buf)
+	encoder := gob.NewEncoder(writer)
 	cons.Save(encoder)
-	return nil
+	return writer.Bytes()
 }
 
-func (cons *Console) LoadState(n int) error {
-	stateFilename := cons.Cart.Filepath + fmt.Sprintf(".state.%d", n)
-	f, err := os.Open(stateFilename)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	decoder := gob.NewDecoder(f)
-	cons.Load(decoder)
-	return nil
+func (cons *Console) LoadState(data []byte) error {
+	reader := bytes.NewReader(data)
+	decoder := gob.NewDecoder(reader)
+	return cons.Load(decoder)
 }
 
 func (cons *Console) readIO(addr uint16) uint8 {
@@ -450,98 +448,54 @@ func (cons *Console) Write(addr uint16, value uint8) {
 	}
 }
 
-func getExecutablePath() (string, error) {
-	ex, err := os.Executable()
-	if err != nil {
-		return "", err
-	}
-	exPath := filepath.Dir(ex)
-	return exPath, nil
-}
-
-func loadBoot(cart *Cart) ([]byte, error) {
-	executableDir, err := getExecutablePath()
-	if err != nil {
-		return nil, err
-	}
-
-	bootromDir := "resources"
-	if _, err := os.Stat("resources"); os.IsNotExist(err) {
-		bootromDir = fmt.Sprintf("%s/resources", executableDir)
-		if _, err := os.Stat(fmt.Sprintf("%s/resources", executableDir)); os.IsNotExist(err) {
-			return nil, err
-		}
-	}
-
+func getBoot(cart *Cart) []byte {
 	if cart.header.CgbFlag != 0 {
-		return os.ReadFile(fmt.Sprintf("%s/cgb.bin", bootromDir))
+		return CGBBoot
 	}
-	return os.ReadFile(fmt.Sprintf("%s/dmg.bin", bootromDir))
+	return DMGBoot
 }
 
-func loadSav(cart *Cart) error {
-	savFilename := cart.Filepath + ".sav"
-	data, err := os.ReadFile(savFilename)
-	if err != nil {
-		// No save file
-		return nil
-	}
-
-	if len(data) != len(cart.RAMBanks)*8192 {
+func (c *Console) LoadSav(data []byte) error {
+	if len(data) != len(c.Cart.RAMBanks)*8192 {
 		return CartError("Invalid SAV file")
 	}
 
-	for i := 0; i < len(cart.RAMBanks); i++ {
+	for i := 0; i < len(c.Cart.RAMBanks); i++ {
 		off := i * 8192
-		copy(cart.RAMBanks[i][:], data[off:off+8192])
+		copy(c.Cart.RAMBanks[i][:], data[off:off+8192])
 	}
 	return nil
 }
 
-func storeSav(cart *Cart) error {
-	if len(cart.RAMBanks) == 0 {
-		return nil
+func (c *Console) StoreSav() ([]byte, error) {
+	if len(c.Cart.RAMBanks) == 0 {
+		return []byte{}, nil
 	}
 
-	savFilename := cart.Filepath + ".sav"
-	f, err := os.Create(savFilename)
-	if err != nil {
-		return err
-	}
-
-	for i := 0; i < len(cart.RAMBanks); i++ {
-		_, err = f.Write(cart.RAMBanks[i][:])
+	buf := make([]byte, 0)
+	writer := bytes.NewBuffer(buf)
+	for i := 0; i < len(c.Cart.RAMBanks); i++ {
+		_, err := writer.Write(c.Cart.RAMBanks[i][:])
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
-	if err = f.Close(); err != nil {
-		return err
-	}
-	return nil
+	return writer.Bytes(), nil
 }
 
-func MakeConsole(rom_filepath string, frontend Frontend) (*Console, error) {
-	cart, err := LoadCartridge(rom_filepath)
-	if err != nil {
-		return nil, err
-	}
-
-	if err = loadSav(cart); err != nil {
-		return nil, err
-	}
-
-	boot, err := loadBoot(cart)
+func MakeConsole(rom []byte, frontend Frontend) (*Console, error) {
+	cart, err := LoadCartridge(rom)
 	if err != nil {
 		return nil, err
 	}
 
 	res := &Console{
+		ROM:             rom,
 		Cart:            cart,
 		RamBank:         1,
 		CGBMode:         cart.header.CgbFlag != 0,
 		CPUFreq:         GBCPU_FREQ,
-		BootROM:         boot,
+		BootROM:         getBoot(cart),
 		InBootROM:       true,
 		SpeedSwitch:     0,
 		DoubleSpeedMode: false,
@@ -564,17 +518,9 @@ func MakeConsole(rom_filepath string, frontend Frontend) (*Console, error) {
 	return res, nil
 }
 
-func (cons *Console) Destroy() error {
-	if err := storeSav(cons.Cart); err != nil {
-		return err
-	}
-	cons.Cart.Map.MapperClose()
-	return nil
-}
-
 var prevTicks int = 0
 
-func (cons *Console) TickComponents(cpuTicks int) {
+func (cons *Console) tickComponents(cpuTicks int) {
 	cons.PPU.Tick(cpuTicks)
 	cons.APU.Tick(cpuTicks)
 	cons.DMA.Tick(cpuTicks)
@@ -588,7 +534,7 @@ func (cons *Console) innerStep() int {
 	if !cons.CPU.IsHalted {
 		for cons.DMA.HdmaInProgress() {
 			// The CPU is busy performing the HDMA
-			cons.TickComponents(1)
+			cons.tickComponents(1)
 			totTicks += 1
 		}
 	}
@@ -597,7 +543,7 @@ func (cons *Console) innerStep() int {
 		var cpu *z80cpu.Z80Cpu = cons.CPU
 		_, disas_str := cons.CPU.Disas.DisassembleOneFromCPU(cons.CPU)
 
-		fmt.Fprintf(os.Stderr, "%s |CYC=%d PC=%04x SP=%04x A=%02x B=%02x C=%02x D=%02x E=%02x H=%02x L=%02x F=%02x IV=%02x PPUC=%04d LY=%02x LYC=%02x STAT=%02x LCDC=%02x SCX=%02x SCY=%02x WX=%02x WY=%02x MEM=%02x\n",
+		log.Printf("%s |CYC=%d PC=%04x SP=%04x A=%02x B=%02x C=%02x D=%02x E=%02x H=%02x L=%02x F=%02x IV=%02x PPUC=%04d LY=%02x LYC=%02x STAT=%02x LCDC=%02x SCX=%02x SCY=%02x WX=%02x WY=%02x MEM=%02x\n",
 			disas_str, prevTicks, cpu.PC, cpu.SP, cpu.A, cpu.B, cpu.C, cpu.D, cpu.E, cpu.H, cpu.L, cpu.PackFlags(), cpu.IE&cpu.IF, cons.PPU.CycleCount, cons.PPU.LY, cons.PPU.LYC, cons.PPU.STAT, cons.PPU.LCDC, cons.PPU.SCX, cons.PPU.SCY, cons.PPU.WX, cons.PPU.WY, cons.Read(cpu.SP))
 	}
 
@@ -612,7 +558,7 @@ func (cons *Console) innerStep() int {
 		}
 	}
 
-	cons.TickComponents(cpuTicks)
+	cons.tickComponents(cpuTicks)
 	totTicks += cpuTicks
 	return totTicks
 }

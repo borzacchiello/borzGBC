@@ -4,13 +4,11 @@ import (
 	"borzGBC/gbc"
 	"bytes"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net"
 	"os"
-	"sync/atomic"
 	"time"
 
 	"github.com/veandco/go-sdl2/sdl"
@@ -35,7 +33,7 @@ type serialSync struct {
 	surface  *sdl.Surface
 	renderer *sdl.Renderer
 
-	running          atomic.Bool
+	running          bool
 	rxSB, rxSC       chan uint8
 	txSB, txSC       chan uint8
 	txInput, rxInput chan uint8
@@ -67,7 +65,7 @@ func makeSerialSync() *serialSync {
 		remote:    nil,
 		surface:   surface,
 		renderer:  renderer,
-		running:   atomic.Bool{},
+		running:   true,
 		rxSB:      make(chan uint8),
 		rxSC:      make(chan uint8),
 		txSB:      make(chan uint8),
@@ -75,7 +73,7 @@ func makeSerialSync() *serialSync {
 		txInput:   make(chan uint8),
 		rxInput:   make(chan uint8),
 	}
-	res.running.Store(true)
+	res.running = true
 	return res
 }
 
@@ -117,7 +115,7 @@ func (pl *serialSync) CommitScreen() {
 }
 
 func (s *serialSync) ExchangeSerial(sb, sc uint8) (uint8, uint8) {
-	if s.running.Load() {
+	if s.running {
 		txSB := <-s.txSB
 		txSC := <-s.txSC
 		s.rxSB <- sb
@@ -215,7 +213,7 @@ func MakeSDLPlugin(scale int) (*SDLPlugin, error) {
 }
 
 func (pl *SDLPlugin) ExchangeSerial(sb, sc uint8) (uint8, uint8) {
-	if pl.serial != nil && pl.serial.running.Load() {
+	if pl.serial != nil && pl.serial.running {
 		pl.serial.txSB <- sb
 		pl.serial.txSC <- sc
 		rxSB := <-pl.serial.rxSB
@@ -360,18 +358,14 @@ func (pl *SDLPlugin) initializeSerialServer(console *gbc.Console, serialServer s
 	}
 
 	// send my ROM
-	romData, err := os.ReadFile(console.Cart.Filepath)
-	if err != nil {
-		return err
-	}
-	romDataSize := uint32(len(romData))
+	romDataSize := uint32(len(console.ROM))
 	romDataSizeBuf := make([]byte, 4)
 	binary.BigEndian.PutUint32(romDataSizeBuf, romDataSize)
 	_, err = conn.Write(romDataSizeBuf)
 	if err != nil {
 		return err
 	}
-	_, err = conn.Write(romData)
+	_, err = conn.Write(console.ROM)
 	if err != nil {
 		return err
 	}
@@ -382,7 +376,7 @@ func (pl *SDLPlugin) initializeSerialServer(console *gbc.Console, serialServer s
 		return err
 	}
 	romDataSize = binary.BigEndian.Uint32(romDataSizeBuf)
-	romData, err = io.ReadAll(io.LimitReader(conn, int64(romDataSize)))
+	romData, err := io.ReadAll(io.LimitReader(conn, int64(romDataSize)))
 	if err != nil {
 		return err
 	}
@@ -396,64 +390,45 @@ func (pl *SDLPlugin) initializeSerialServer(console *gbc.Console, serialServer s
 	}
 	f.Close()
 
-	// send my SAV (if any)
-	var savDataSize uint32
-	savData, err := os.ReadFile(console.Cart.Filepath + ".sav")
-	if err == nil {
-		savDataSize = uint32(len(savData))
-	} else {
-		if errors.Is(err, os.ErrNotExist) {
-			savDataSize = 0
-		} else {
-			return err
-		}
-	}
+	// send my STATE
+	savData := console.SaveState()
 	savDataSizeBuf := make([]byte, 4)
-	binary.BigEndian.PutUint32(savDataSizeBuf, savDataSize)
+	binary.BigEndian.PutUint32(savDataSizeBuf, uint32(len(savData)))
 	_, err = conn.Write(savDataSizeBuf)
 	if err != nil {
 		return err
 	}
-	if savDataSize > 0 {
-		_, err = conn.Write(savData)
-		if err != nil {
-			return err
-		}
+	_, err = conn.Write(savData)
+	if err != nil {
+		return err
 	}
 
-	// receive peer SAV (if any)
+	// receive peer STATE
 	savDataSizeBuf, err = io.ReadAll(io.LimitReader(conn, 4))
 	if err != nil {
 		return err
 	}
-	savDataSize = binary.BigEndian.Uint32(savDataSizeBuf)
-	if savDataSize > 0 {
-		savData, err = io.ReadAll(io.LimitReader(conn, int64(savDataSize)))
-		if err != nil {
-			return err
-		}
-		fSav, err := os.Create(f.Name() + ".sav")
-		if err != nil {
-			return err
-		}
-		_, err = fSav.Write(savData)
-		if err != nil {
-			return err
-		}
-		fSav.Close()
+	savDataSize := binary.BigEndian.Uint32(savDataSizeBuf)
+	savData, err = io.ReadAll(io.LimitReader(conn, int64(savDataSize)))
+	if err != nil {
+		return err
 	}
 
 	// initialize peer console
 	pl.serial = makeSerialSync()
 	pl.serial.remote = conn
-	pl.serial.companion, err = gbc.MakeConsole(f.Name(), pl.serial)
+	pl.serial.companion, err = gbc.MakeConsole(romData, pl.serial)
+	if err != nil {
+		return err
+	}
+	err = pl.serial.companion.LoadState(savData)
 	if err != nil {
 		return err
 	}
 
 	// start the network sync loop
 	go func() {
-		for pl.serial.running.Load() {
+		for pl.serial.running {
 			rawRXData, err := io.ReadAll(io.LimitReader(pl.serial.remote, 1))
 			if err != nil || len(rawRXData) == 0 {
 				break
@@ -462,10 +437,10 @@ func (pl *SDLPlugin) initializeSerialServer(console *gbc.Console, serialServer s
 		}
 		close(pl.serial.rxInput)
 		pl.serial.remote.Close()
-		pl.serial.running.Store(false)
+		pl.serial.running = false
 	}()
 	go func() {
-		for pl.serial.running.Load() {
+		for pl.serial.running {
 			toSend := <-pl.serial.txInput
 			_, err := pl.serial.remote.Write([]byte{toSend})
 			if err != nil {
@@ -473,13 +448,13 @@ func (pl *SDLPlugin) initializeSerialServer(console *gbc.Console, serialServer s
 			}
 		}
 		pl.serial.remote.Close()
-		pl.serial.running.Store(false)
+		pl.serial.running = false
 	}()
 
 	// start the emulator
 	go func() {
 		syncCount := 0
-		for pl.serial.running.Load() {
+		for pl.serial.running {
 			if syncCount == SERIAL_FRAME_SYNC {
 				pl.serial.companion.Input.BackState.Unserialize(<-pl.serial.rxInput)
 				syncCount = 0
@@ -494,16 +469,30 @@ func (pl *SDLPlugin) initializeSerialServer(console *gbc.Console, serialServer s
 		close(pl.serial.rxSB)
 		close(pl.serial.rxSC)
 		pl.serial.remote.Close()
-		pl.serial.running.Store(false)
+		pl.serial.running = false
 	}()
 	return nil
 }
 
-func (pl *SDLPlugin) Run(console *gbc.Console, serialServer string) error {
+func saveState(rom string, console *gbc.Console, n int) error {
+	statePath := fmt.Sprintf("%s.state.%d", rom, n)
+	return os.WriteFile(statePath, console.SaveState(), 0644)
+}
+
+func loadState(rom string, console *gbc.Console, n int) error {
+	statePath := fmt.Sprintf("%s.state.%d", rom, n)
+	data, err := os.ReadFile(statePath)
+	if err != nil {
+		return err
+	}
+	return console.LoadState(data)
+}
+
+func (pl *SDLPlugin) Run(rom string, console *gbc.Console, serialServer string) error {
 	// serial server
 	if serialServer != "" {
 		if err := pl.initializeSerialServer(console, serialServer); err != nil {
-			return err
+			return fmt.Errorf("unable to initialize serial client: %s", err)
 		}
 	}
 
@@ -530,7 +519,7 @@ func (pl *SDLPlugin) Run(console *gbc.Console, serialServer string) error {
 				case sdl.K_F1, sdl.K_F2, sdl.K_F3, sdl.K_F4:
 					if t.State == sdl.PRESSED && pl.serial == nil {
 						n := int(keyCode - sdl.K_F1 + 1)
-						err := console.SaveState(n)
+						err := saveState(rom, console, n)
 						if err != nil {
 							pl.DisplayNotification("error while saving state")
 						} else {
@@ -540,8 +529,9 @@ func (pl *SDLPlugin) Run(console *gbc.Console, serialServer string) error {
 				case sdl.K_F5, sdl.K_F6, sdl.K_F7, sdl.K_F8:
 					n := int(keyCode - sdl.K_F5 + 1)
 					if t.State == sdl.PRESSED && pl.serial == nil {
-						err := console.LoadState(n)
+						err := loadState(rom, console, n)
 						if err != nil {
+							log.Printf("ERROR LOADING STATE: %s\n", err)
 							pl.DisplayNotification("error while loading state")
 						} else {
 							pl.DisplayNotification("state loaded")
@@ -659,7 +649,7 @@ func (pl *SDLPlugin) Run(console *gbc.Console, serialServer string) error {
 		}
 
 		if serialServer != "" {
-			if pl.serial.running.Load() {
+			if pl.serial.running {
 				if syncCount == 0 {
 					pl.serial.txInput <- currentInput.Serialize()
 					freezedInput = currentInput

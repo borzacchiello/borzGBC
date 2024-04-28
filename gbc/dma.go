@@ -50,19 +50,27 @@ func (dma *Dma) Save(encoder *gob.Encoder) {
 	panicIfErr(encoder.Encode(dma.HdmaHblankBytes))
 }
 
-func (dma *Dma) Load(decoder *gob.Decoder) {
-	panicIfErr(decoder.Decode(&dma.GbDmaCycles))
-	panicIfErr(decoder.Decode(&dma.GbDmaValue))
-	panicIfErr(decoder.Decode(&dma.HdmaWritten))
-	panicIfErr(decoder.Decode(&dma.HdmaState))
-	panicIfErr(decoder.Decode(&dma.HdmaType))
-	panicIfErr(decoder.Decode(&dma.HdmaControl))
-	panicIfErr(decoder.Decode(&dma.HdmaSrcHi))
-	panicIfErr(decoder.Decode(&dma.HdmaSrcLo))
-	panicIfErr(decoder.Decode(&dma.HdmaDstHi))
-	panicIfErr(decoder.Decode(&dma.HdmaDstLo))
-	panicIfErr(decoder.Decode(&dma.HdmaBytesToCopy))
-	panicIfErr(decoder.Decode(&dma.HdmaHblankBytes))
+func (dma *Dma) Load(decoder *gob.Decoder) error {
+	errs := []error{
+		decoder.Decode(&dma.GbDmaCycles),
+		decoder.Decode(&dma.GbDmaValue),
+		decoder.Decode(&dma.HdmaWritten),
+		decoder.Decode(&dma.HdmaState),
+		decoder.Decode(&dma.HdmaType),
+		decoder.Decode(&dma.HdmaControl),
+		decoder.Decode(&dma.HdmaSrcHi),
+		decoder.Decode(&dma.HdmaSrcLo),
+		decoder.Decode(&dma.HdmaDstHi),
+		decoder.Decode(&dma.HdmaDstLo),
+		decoder.Decode(&dma.HdmaBytesToCopy),
+		decoder.Decode(&dma.HdmaHblankBytes),
+	}
+	for _, err := range errs {
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func MakeDma(GBC *Console) *Dma {

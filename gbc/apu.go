@@ -122,26 +122,34 @@ func (ch *Channel) Save(encoder *gob.Encoder) {
 	panicIfErr(encoder.Encode(ch.debugOff))
 }
 
-func (ch *Channel) Load(decoder *gob.Decoder) {
-	panicIfErr(decoder.Decode(&ch.frequency))
-	panicIfErr(decoder.Decode(&ch.time))
-	panicIfErr(decoder.Decode(&ch.amplitude))
-	panicIfErr(decoder.Decode(&ch.duration))
-	panicIfErr(decoder.Decode(&ch.length))
-	panicIfErr(decoder.Decode(&ch.envelopeVolume))
-	panicIfErr(decoder.Decode(&ch.envelopeTime))
-	panicIfErr(decoder.Decode(&ch.envelopeSteps))
-	panicIfErr(decoder.Decode(&ch.envelopeStepsInit))
-	panicIfErr(decoder.Decode(&ch.envelopeSamples))
-	panicIfErr(decoder.Decode(&ch.envelopeIncreasing))
-	panicIfErr(decoder.Decode(&ch.sweepTime))
-	panicIfErr(decoder.Decode(&ch.sweepStepLen))
-	panicIfErr(decoder.Decode(&ch.sweepSteps))
-	panicIfErr(decoder.Decode(&ch.sweepStep))
-	panicIfErr(decoder.Decode(&ch.sweepIncrease))
-	panicIfErr(decoder.Decode(&ch.onL))
-	panicIfErr(decoder.Decode(&ch.onR))
-	panicIfErr(decoder.Decode(&ch.debugOff))
+func (ch *Channel) Load(decoder *gob.Decoder) error {
+	errs := []error{
+		decoder.Decode(&ch.frequency),
+		decoder.Decode(&ch.time),
+		decoder.Decode(&ch.amplitude),
+		decoder.Decode(&ch.duration),
+		decoder.Decode(&ch.length),
+		decoder.Decode(&ch.envelopeVolume),
+		decoder.Decode(&ch.envelopeTime),
+		decoder.Decode(&ch.envelopeSteps),
+		decoder.Decode(&ch.envelopeStepsInit),
+		decoder.Decode(&ch.envelopeSamples),
+		decoder.Decode(&ch.envelopeIncreasing),
+		decoder.Decode(&ch.sweepTime),
+		decoder.Decode(&ch.sweepStepLen),
+		decoder.Decode(&ch.sweepSteps),
+		decoder.Decode(&ch.sweepStep),
+		decoder.Decode(&ch.sweepIncrease),
+		decoder.Decode(&ch.onL),
+		decoder.Decode(&ch.onR),
+		decoder.Decode(&ch.debugOff),
+	}
+	for _, err := range errs {
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // APU is the GameBoy's audio processing unit. Audio comprises four
@@ -177,18 +185,26 @@ func (apu *Apu) Save(encoder *gob.Encoder) {
 	apu.chn4.Save(encoder)
 }
 
-func (apu *Apu) Load(decoder *gob.Decoder) {
-	panicIfErr(decoder.Decode(&apu.globalVolume))
-	panicIfErr(decoder.Decode(&apu.playing))
-	panicIfErr(decoder.Decode(&apu.memory))
-	panicIfErr(decoder.Decode(&apu.waveformRam))
-	panicIfErr(decoder.Decode(&apu.tickCounter))
-	panicIfErr(decoder.Decode(&apu.lVol))
-	panicIfErr(decoder.Decode(&apu.rVol))
-	apu.chn1.Load(decoder)
-	apu.chn2.Load(decoder)
-	apu.chn3.Load(decoder)
-	apu.chn4.Load(decoder)
+func (apu *Apu) Load(decoder *gob.Decoder) error {
+	errs := []error{
+		decoder.Decode(&apu.globalVolume),
+		decoder.Decode(&apu.playing),
+		decoder.Decode(&apu.memory),
+		decoder.Decode(&apu.waveformRam),
+		decoder.Decode(&apu.tickCounter),
+		decoder.Decode(&apu.lVol),
+		decoder.Decode(&apu.rVol),
+		apu.chn1.Load(decoder),
+		apu.chn2.Load(decoder),
+		apu.chn3.Load(decoder),
+		apu.chn4.Load(decoder),
+	}
+	for _, err := range errs {
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func MakeApu(GBC *Console, frontend Frontend) *Apu {

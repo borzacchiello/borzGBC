@@ -31,12 +31,17 @@ func runRomTestWithSerial(t *testing.T, test string, frames int, serialFunction 
 	testName := strings.Split(test, ".")[0]
 	pl := frontend.MkImageVideoDriver()
 	pl.SerialFunction = serialFunction
-	console, err := gbc.MakeConsole(fmt.Sprintf("testRoms/%s", test), pl)
+	romPath := fmt.Sprintf("testRoms/%s", test)
+	rom, err := os.ReadFile(romPath)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	console, err := gbc.MakeConsole(rom, pl)
 	if err != nil {
 		t.Error("Unable to create console")
 		return
 	}
-	defer console.Destroy()
 
 	console.PPU.GBPalette = gbc.GB_PALETTE_GREY
 	for console.PPU.FrameCount < frames {

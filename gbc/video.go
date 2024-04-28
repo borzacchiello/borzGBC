@@ -163,35 +163,43 @@ func (ppu *Ppu) Save(encoder *gob.Encoder) {
 	panicIfErr(encoder.Encode(ppu.wasModeInterruptTriggered))
 }
 
-func (ppu *Ppu) Load(decoder *gob.Decoder) {
-	panicIfErr(decoder.Decode(&ppu.VRAM))
-	panicIfErr(decoder.Decode(&ppu.VRAMBank))
-	panicIfErr(decoder.Decode(&ppu.OamRAM))
-	panicIfErr(decoder.Decode(&ppu.CRAMBg))
-	panicIfErr(decoder.Decode(&ppu.CRAMBgAddr))
-	panicIfErr(decoder.Decode(&ppu.CRAMBgAutoInc))
-	panicIfErr(decoder.Decode(&ppu.CRAMObj))
-	panicIfErr(decoder.Decode(&ppu.CRAMObjAddr))
-	panicIfErr(decoder.Decode(&ppu.CRAMObjAutoInc))
-	panicIfErr(decoder.Decode(&ppu.tiles))
-	panicIfErr(decoder.Decode(&ppu.sprites))
-	panicIfErr(decoder.Decode(&ppu.STAT))
-	panicIfErr(decoder.Decode(&ppu.LCDC))
-	panicIfErr(decoder.Decode(&ppu.SCY))
-	panicIfErr(decoder.Decode(&ppu.SCX))
-	panicIfErr(decoder.Decode(&ppu.LY))
-	panicIfErr(decoder.Decode(&ppu.LYC))
-	panicIfErr(decoder.Decode(&ppu.WY))
-	panicIfErr(decoder.Decode(&ppu.WX))
-	panicIfErr(decoder.Decode(&ppu.BGP))
-	panicIfErr(decoder.Decode(&ppu.OBP0))
-	panicIfErr(decoder.Decode(&ppu.OBP1))
-	panicIfErr(decoder.Decode(&ppu.WindowScanline))
-	panicIfErr(decoder.Decode(&ppu.Mode))
-	panicIfErr(decoder.Decode(&ppu.CycleCount))
-	panicIfErr(decoder.Decode(&ppu.FrameCount))
-	panicIfErr(decoder.Decode(&ppu.wasDisplayEnabled))
-	panicIfErr(decoder.Decode(&ppu.wasModeInterruptTriggered))
+func (ppu *Ppu) Load(decoder *gob.Decoder) error {
+	errs := []error{
+		decoder.Decode(&ppu.VRAM),
+		decoder.Decode(&ppu.VRAMBank),
+		decoder.Decode(&ppu.OamRAM),
+		decoder.Decode(&ppu.CRAMBg),
+		decoder.Decode(&ppu.CRAMBgAddr),
+		decoder.Decode(&ppu.CRAMBgAutoInc),
+		decoder.Decode(&ppu.CRAMObj),
+		decoder.Decode(&ppu.CRAMObjAddr),
+		decoder.Decode(&ppu.CRAMObjAutoInc),
+		decoder.Decode(&ppu.tiles),
+		decoder.Decode(&ppu.sprites),
+		decoder.Decode(&ppu.STAT),
+		decoder.Decode(&ppu.LCDC),
+		decoder.Decode(&ppu.SCY),
+		decoder.Decode(&ppu.SCX),
+		decoder.Decode(&ppu.LY),
+		decoder.Decode(&ppu.LYC),
+		decoder.Decode(&ppu.WY),
+		decoder.Decode(&ppu.WX),
+		decoder.Decode(&ppu.BGP),
+		decoder.Decode(&ppu.OBP0),
+		decoder.Decode(&ppu.OBP1),
+		decoder.Decode(&ppu.WindowScanline),
+		decoder.Decode(&ppu.Mode),
+		decoder.Decode(&ppu.CycleCount),
+		decoder.Decode(&ppu.FrameCount),
+		decoder.Decode(&ppu.wasDisplayEnabled),
+		decoder.Decode(&ppu.wasModeInterruptTriggered),
+	}
+	for _, err := range errs {
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // LCDC Values

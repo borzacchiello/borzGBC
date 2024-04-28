@@ -1,6 +1,8 @@
 package gbc
 
-import "encoding/gob"
+import (
+	"encoding/gob"
+)
 
 type JoypadState struct {
 	A, B, UP, DOWN, LEFT, RIGHT, START, SELECT bool
@@ -25,12 +27,20 @@ func (j *Joypad) Save(encoder *gob.Encoder) {
 	panicIfErr(encoder.Encode(j.ticks))
 }
 
-func (j *Joypad) Load(decoder *gob.Decoder) {
-	panicIfErr(decoder.Decode(&j.BackState))
-	panicIfErr(decoder.Decode(&j.FrontState))
-	panicIfErr(decoder.Decode(&j.ActionSelector))
-	panicIfErr(decoder.Decode(&j.DirectionSelector))
-	panicIfErr(decoder.Decode(&j.ticks))
+func (j *Joypad) Load(decoder *gob.Decoder) error {
+	errs := []error{
+		decoder.Decode(&j.BackState),
+		decoder.Decode(&j.FrontState),
+		decoder.Decode(&j.ActionSelector),
+		decoder.Decode(&j.DirectionSelector),
+		decoder.Decode(&j.ticks),
+	}
+	for _, err := range errs {
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func MakeJoypad(cons *Console) *Joypad {

@@ -84,26 +84,35 @@ func (cpu *Z80Cpu) Save(encoder *gob.Encoder) {
 	panicIfErr(encoder.Encode(cpu.interruptsEnabled))
 }
 
-func (cpu *Z80Cpu) Load(decoder *gob.Decoder) {
-	panicIfErr(decoder.Decode(&cpu.A))
-	panicIfErr(decoder.Decode(&cpu.B))
-	panicIfErr(decoder.Decode(&cpu.C))
-	panicIfErr(decoder.Decode(&cpu.D))
-	panicIfErr(decoder.Decode(&cpu.E))
-	panicIfErr(decoder.Decode(&cpu.H))
-	panicIfErr(decoder.Decode(&cpu.L))
-	panicIfErr(decoder.Decode(&cpu.SP))
-	panicIfErr(decoder.Decode(&cpu.PC))
-	panicIfErr(decoder.Decode(&cpu.IE))
-	panicIfErr(decoder.Decode(&cpu.IF))
-	panicIfErr(decoder.Decode(&cpu.flagWasZero))
-	panicIfErr(decoder.Decode(&cpu.flagWasSub))
-	panicIfErr(decoder.Decode(&cpu.flagHalfCarry))
-	panicIfErr(decoder.Decode(&cpu.flagCarry))
-	panicIfErr(decoder.Decode(&cpu.branchWasTaken))
-	panicIfErr(decoder.Decode(&cpu.IsHalted))
-	panicIfErr(decoder.Decode(&cpu.IsStopped))
-	panicIfErr(decoder.Decode(&cpu.interruptsEnabled))
+func (cpu *Z80Cpu) Load(decoder *gob.Decoder) error {
+	errs := []error{
+		decoder.Decode(&cpu.A),
+		decoder.Decode(&cpu.B),
+		decoder.Decode(&cpu.C),
+		decoder.Decode(&cpu.D),
+		decoder.Decode(&cpu.E),
+		decoder.Decode(&cpu.H),
+		decoder.Decode(&cpu.L),
+		decoder.Decode(&cpu.SP),
+		decoder.Decode(&cpu.PC),
+		decoder.Decode(&cpu.IE),
+		decoder.Decode(&cpu.IF),
+		decoder.Decode(&cpu.flagWasZero),
+		decoder.Decode(&cpu.flagWasSub),
+		decoder.Decode(&cpu.flagHalfCarry),
+		decoder.Decode(&cpu.flagCarry),
+		decoder.Decode(&cpu.branchWasTaken),
+		decoder.Decode(&cpu.IsHalted),
+		decoder.Decode(&cpu.IsStopped),
+		decoder.Decode(&cpu.interruptsEnabled),
+	}
+
+	for _, err := range errs {
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (cpu *Z80Cpu) RegisterInterrupt(interrupt Z80Interrupt) {
