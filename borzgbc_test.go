@@ -3,14 +3,74 @@ package main
 import (
 	"fmt"
 	"image"
+	"image/color"
 	"image/png"
 	"os"
 	"strings"
 	"testing"
 
-	"borzGBC/frontend"
-	"borzGBC/gbc"
+	"borzGBC/pkg/gbc"
 )
+
+/*
+ * Test Frontend
+ */
+
+type ImageVideoDriver struct {
+	backImg  *image.RGBA
+	frontImg *image.RGBA
+	num      int
+
+	SerialFunction func(sb, sc uint8) (uint8, uint8)
+}
+
+func MkImageVideoDriver() *ImageVideoDriver {
+	res := &ImageVideoDriver{}
+
+	upLeft := image.Point{0, 0}
+	lowRight := image.Point{160, 144}
+	res.backImg = image.NewRGBA(image.Rectangle{upLeft, lowRight})
+	res.frontImg = image.NewRGBA(image.Rectangle{upLeft, lowRight})
+
+	return res
+}
+
+func (d *ImageVideoDriver) SetPixel(x, y int, c uint32) {
+	var r, g, b, a uint8
+	r = uint8((c >> 24) & 0xFF)
+	g = uint8((c >> 16) & 0xFF)
+	b = uint8((c >> 8) & 0xFF)
+	a = uint8(c & 0xFF)
+
+	d.backImg.SetRGBA(x, y, color.RGBA{r, g, b, a})
+}
+
+func (d *ImageVideoDriver) CommitScreen() {
+	d.frontImg = d.backImg
+	d.num += 1
+}
+
+func (d *ImageVideoDriver) SaveScreen(path string) {
+	f, _ := os.Create(path)
+	defer f.Close()
+
+	png.Encode(f, d.frontImg)
+}
+
+func (pl *ImageVideoDriver) NotifyAudioSample(l, r int8) {
+	// Ignore audio
+}
+
+func (pl *ImageVideoDriver) GetCurrentImage() *image.RGBA {
+	return pl.frontImg
+}
+
+func (pl *ImageVideoDriver) ExchangeSerial(sb, sc uint8) (uint8, uint8) {
+	if pl.SerialFunction != nil {
+		return pl.SerialFunction(sb, sc)
+	}
+	return 0, 0
+}
 
 func imagesAreEqual(img1, img2 image.Image) bool {
 	if img1.Bounds() != img2.Bounds() {
@@ -27,11 +87,15 @@ func imagesAreEqual(img1, img2 image.Image) bool {
 	return true
 }
 
+/*
+ * Utility functions
+ */
+
 func runRomTestWithSerial(t *testing.T, test string, frames int, serialFunction func(sb, sc uint8) (uint8, uint8)) {
 	testName := strings.Split(test, ".")[0]
-	pl := frontend.MkImageVideoDriver()
+	pl := MkImageVideoDriver()
 	pl.SerialFunction = serialFunction
-	romPath := fmt.Sprintf("testRoms/%s", test)
+	romPath := fmt.Sprintf("test/data/%s", test)
 	rom, err := os.ReadFile(romPath)
 	if err != nil {
 		t.Error(err)
@@ -48,9 +112,9 @@ func runRomTestWithSerial(t *testing.T, test string, frames int, serialFunction 
 		console.Step()
 	}
 
-	pl.SaveScreen(fmt.Sprintf("testRoms/%s.result.png", testName))
+	pl.SaveScreen(fmt.Sprintf("test/data/%s.result.png", testName))
 
-	f, err := os.Open(fmt.Sprintf("testRoms/%s.png", testName))
+	f, err := os.Open(fmt.Sprintf("test/data/%s.png", testName))
 	if err != nil {
 		t.Error("Unable to read expected screen")
 		return
@@ -66,6 +130,10 @@ func runRomTestWithSerial(t *testing.T, test string, frames int, serialFunction 
 		t.Fail()
 	}
 }
+
+/*
+ * Real tests
+ */
 
 func runRomTest(t *testing.T, test string, frames int) {
 	runRomTestWithSerial(t, test, frames, nil)

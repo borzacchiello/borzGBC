@@ -1,7 +1,7 @@
-package frontend
+package main
 
 import (
-	"borzGBC/gbc"
+	"borzGBC/pkg/gbc"
 	"bytes"
 	"encoding/binary"
 	"fmt"
@@ -196,7 +196,7 @@ func MakeSDLPlugin(scale int) (*SDLPlugin, error) {
 	if err != nil {
 		return nil, err
 	}
-	pl.font, err = ttf.OpenFont("resources/courier.ttf", 20)
+	pl.font, err = ttf.OpenFont("assets/courier.ttf", 20)
 	if err != nil {
 		return nil, err
 	}
@@ -224,7 +224,7 @@ func (pl *SDLPlugin) ExchangeSerial(sb, sc uint8) (uint8, uint8) {
 }
 
 func (pl *SDLPlugin) NotifyAudioSample(l, r int8) {
-	// fmt.Printf("adding sample: %d, %d\n", l, r)
+	// log.Printf("adding sample: %d, %d\n", l, r)
 	if pl.soundBufferIdx >= len(pl.soundBuffer) {
 		pl.soundBufferIdx = 0
 		sdl.QueueAudio(pl.audioDevice, pl.soundBuffer[:])
@@ -686,4 +686,63 @@ func (pl *SDLPlugin) Run(rom string, console *gbc.Console, serialServer string) 
 		}
 	}
 	return nil
+}
+
+func main() {
+	if len(os.Args) < 2 {
+		fmt.Println("missing ROM filename")
+		return
+	}
+	remote := ""
+	if len(os.Args) > 2 {
+		remote = os.Args[2]
+		log.Printf("remote mode, connecting to %s\n", remote)
+	}
+
+	pl, err := MakeSDLPlugin( /* scaling factor */ 3)
+	if err != nil {
+		log.Printf("unable to create SDLPlugin: %s\n", err)
+		return
+	}
+	defer pl.Destroy()
+
+	romPath := os.Args[1]
+	rom, err := os.ReadFile(romPath)
+	if err != nil {
+		log.Printf("invalid rom: %s\n", err)
+		return
+	}
+	console, err := gbc.MakeConsole(rom, pl)
+	if err != nil {
+		log.Printf("unable to create the console: %s\n", err)
+		return
+	}
+	savFile := fmt.Sprintf("%s.sav", romPath)
+	sav, err := os.ReadFile(savFile)
+	if err == nil {
+		err = console.LoadSav(sav)
+		if err != nil {
+			log.Printf("unable to load sav: %s\n", err)
+			return
+		}
+	}
+
+	console.Verbose = false
+	console.CPU.EnableDisas = false
+	console.PrintDebug = false
+	err = pl.Run(romPath, console, remote)
+	if err != nil {
+		log.Printf("unable to run the emulator: %s\n", err)
+	}
+
+	sav, err = console.StoreSav()
+	if err != nil {
+		log.Printf("unable to store sav: %s\n", err)
+		return
+	}
+	err = os.WriteFile(savFile, sav, 0644)
+	if err != nil {
+		log.Printf("unable to store sav: %s\n", err)
+		return
+	}
 }

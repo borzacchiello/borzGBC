@@ -1,5 +1,6 @@
 .DS_Store
-
-borzGBC
-borzGBC.exe
 ROMS/
+
+*.exe
+borzgbc
+serialServer

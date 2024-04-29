@@ -6,11 +6,11 @@ The emulator is *not* cycle-accurate, but it can still run many GB and GBC roms.
 
 ### Compilation and Usage
 
-To compile, just run `go build` in the project directory. You need libsdl installed in your system.
+To compile, just run `make` in the project directory. You need libsdl installed in your system.
 
 To run the emulator, run:
 ```
-$ ./borzGBC /path/to/rom
+$ ./borzgbc /path/to/rom
 ```
 
 ### Tests
@@ -50,6 +50,3 @@ The keymappings are the following:
 
 ### Credits
 - The APU implementation is taken from [goboy](https://github.com/Humpheh/goboy) emulator
-
-### Todo
-- Serial Data Transfer
