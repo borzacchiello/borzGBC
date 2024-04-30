@@ -1,6 +1,7 @@
 .DS_Store
 ROMS/
 
+*.wasm
 *.exe
 borzgbc
 serialServer
