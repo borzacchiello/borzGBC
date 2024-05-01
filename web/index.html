@@ -4,27 +4,29 @@
     <title>borzgbc</title>
 
     <style>
-        .not-selectable {
+        * {
             -webkit-touch-callout: none;
             -webkit-user-select: none;
             -khtml-user-select: none;
             -moz-user-select: none;
             -ms-user-select: none;
             user-select: none;
+            touch-action: none;
         }
 
         canvas {
-            height: 45%;
+            height: 50%;
             width: auto;
         }
 
         button {
-            padding: 14px 28px;
-            font-size: 32px;
+            padding: 15px 35px;
+            height: 120px;
+            font-size: 50px;
         }
 
         td {
-            padding: 15px 10px;
+            padding: 5px 15px;
         }
     </style>
 
@@ -43,9 +45,10 @@
         var goCtx;
 
         var rawImageBuffer;
-        var imageData;
 
+        var animateCount = 0;
         var keystate = 0;
+        var fullSpeed = false;
 
         async function init_wasm() {
             goCtx = new Go();
@@ -89,6 +92,10 @@
                 case 8:
                     // Backspace key [ SELECT ]
                     keystate |= 1 << 7;
+                    break;
+                case 70:
+                    // F key
+                    fullSpeed = !fullSpeed;
                     break;
                 default:
                     break;
@@ -147,18 +154,35 @@
             return new Uint8ClampedArray(goCtx._inst.exports.mem.buffer, array, len);
         }
 
+        function hideInputs() {
+            document.getElementById("inputs1").style.display = 'none';
+            document.getElementById("inputs2").style.display = 'none';
+        }
+
         function animate() {
             try {
                 emulator_start_timer();
-                emulator_step();
+                if (!emulator_step()) {
+                    throw new Error("emulator_step failed");
+                }
             } catch (e) {
                 console.log(e);
+
+                // fatal error... display it and hide the canvas
+                document.getElementById("canvas").style.display = 'none';
+                hideInputs();
+                var p = document.getElementById("fatalLog");
+                var t = document.createTextNode(JSON.stringify(e));
+                p.appendChild(t);
                 return;
             }
+            var imageData = new ImageData(loadSlice(rawImageBuffer), width * scale, height * scale);
             ctx.putImageData(imageData, 0, 0);
             emulator_notify_input(keystate);
 
-            var msToSleep = emulator_end_timer();
+            document.getElementById("status").innerText = (fullSpeed ? "SPEED MODE" : "") + " frame: " + animateCount;
+            animateCount += 1;
+            var msToSleep = fullSpeed ? 0 : emulator_end_timer();
             setTimeout(animate, msToSleep);
         }
 
@@ -175,6 +199,13 @@
         }
 
         async function start() {
+            // hide inputs on desktop
+            var isMobile = navigator.userAgent.match(/(iPad)|(iPhone)|(iPod)|(android)|(webOS)/i)
+            if (!isMobile) {
+                document.getElementById("canvas").style.height = '80%';
+                hideInputs();
+            }
+
             // canvas
             canvas = document.getElementById("canvas");
             ctx = canvas.getContext('2d');
@@ -198,7 +229,6 @@
                 emulator_load_sav(sav);
             }
 
-            imageData = new ImageData(loadSlice(rawImageBuffer), width * scale, height * scale);
             animate();
         }
 
@@ -212,18 +242,26 @@
         window.addEventListener('keydown', keydownHandler, false);
         window.addEventListener('keyup', keyupHandler, false);
 
+        // prevent touch selection
+        const touchHandler = (ev) => {
+            ev.preventDefault() // Prevent text selection
+        }
+        document.addEventListener('touchstart', touchHandler, { passive: false })
+        document.addEventListener('touchmove', touchHandler, { passive: false })
+        document.addEventListener('touchend', touchHandler, { passive: false })
+        document.addEventListener('touchcancel', touchHandler, { passive: false })
     </script>
 </head>
 
 <body>
-    <div class="container">
-        <p align="center">
-            <canvas id="canvas" width="160" height="144" style="border:1px solid #000000;"></canvas>
+    <div class="not-selectable" class="container" style="touch-action: manipulation;">
+        <p id="status" align="center"></p>
+        <p class="not-selectable" align="center" style="touch-action: manipulation;">
+            <canvas class="not-selectable" id="canvas" width="160" height="144"
+                style="border:1px solid #000000;"></canvas>
         </p>
-
         <br>
-
-        <table align="center">
+        <table id="inputs1" align="center">
             <tr>
                 <td> </td>
                 <td> <button class="not-selectable" type="button" onmousedown="keydownHandler({'keyCode': 38})"
@@ -238,19 +276,19 @@
             <tr>
                 <td> <button class="not-selectable" type="button" onmousedown="keydownHandler({'keyCode': 37})"
                         onmouseup="keyupHandler({'keyCode': 37})" ontouchstart="keydownHandler({'keyCode': 37})"
-                        ontouchend="keyupHandler({'keyCode': 37})"><</button>
+                        ontouchend="keyupHandler({'keyCode': 37})">&lt;</button>
                 </td>
                 <td> </td>
                 <td> <button class="not-selectable" type="button" onmousedown="keydownHandler({'keyCode': 39})"
                         onmouseup="keyupHandler({'keyCode': 39})" ontouchstart="keydownHandler({'keyCode': 39})"
-                        ontouchend="keyupHandler({'keyCode': 39})">></button> </td>
-                <td> </td>
-                <td> <button class="not-selectable" type="button" onmousedown="keydownHandler({'keyCode': 90})"
-                        onmouseup="keyupHandler({'keyCode': 90})" ontouchstart="keydownHandler({'keyCode': 90})"
-                        ontouchend="keyupHandler({'keyCode': 90})">A</button> </td>
+                        ontouchend="keyupHandler({'keyCode': 39})">&gt;</button> </td>
+                <td style="color: white;"> --------------------------- </td>
                 <td> <button class="not-selectable" type="button" onmousedown="keydownHandler({'keyCode': 88})"
                         onmouseup="keyupHandler({'keyCode': 88})" ontouchstart="keydownHandler({'keyCode': 88})"
                         ontouchend="keyupHandler({'keyCode': 88})">B</button> </td>
+                <td> <button class="not-selectable" type="button" onmousedown="keydownHandler({'keyCode': 90})"
+                        onmouseup="keyupHandler({'keyCode': 90})" ontouchstart="keydownHandler({'keyCode': 90})"
+                        ontouchend="keyupHandler({'keyCode': 90})">A</button> </td>
                 <td> </td>
             </tr>
             <tr>
@@ -264,21 +302,23 @@
                 <td> </td>
                 <td> </td>
             </tr>
+        </table>
+        <br> <br> <br>
+        <table id="inputs2" align="center">
             <tr>
-                <td> </td>
-                <td> </td>
                 <td> <button class="not-selectable" type="button" onmousedown="keydownHandler({'keyCode': 8})"
                         onmouseup="keyupHandler({'keyCode': 8})" ontouchstart="keydownHandler({'keyCode': 8})"
                         ontouchend="keyupHandler({'keyCode': 8})">SELECT</button> </td>
-                <td> <button class="not-selectable" type="button" onmousedown="keydownHandler({'keyCode': 13})"
+                <td> <button id="speed" class="not-selectable" type="button"
+                    onmousedown="keydownHandler({'keyCode': 70})"
+                    ontouchstart="keydownHandler({'keyCode': 70})">SPEED</button> </td>
+                </td>
+				<td> <button class="not-selectable" type="button" onmousedown="keydownHandler({'keyCode': 13})"
                         onmouseup="keyupHandler({'keyCode': 13})" ontouchstart="keydownHandler({'keyCode': 13})"
                         ontouchend="keyupHandler({'keyCode': 13})">START</button> </td>
-                <td> </td>
-                <td> </td>
-                <td> </td>
             </tr>
         </table>
     </div>
+    <p id="fatalLog"></p>
 </body>
-
 </html>
