@@ -1,0 +1,353 @@
+<html>
+
+<head>
+    <title>borzgbc</title>
+
+    <style>
+        * {
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            -khtml-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+            touch-action: none;
+        }
+
+        canvas {
+            height: 50%;
+            width: auto;
+        }
+
+        #inputContainer {
+            height: 50%;
+            width: auto;
+        }
+
+        button {
+            padding: 15px 35px;
+            height: 120px;
+            font-size: 50px;
+            border-top-left-radius: 20px;
+            border-top-right-radius: 20px;
+            border-bottom-right-radius: 20px;
+            border-bottom-left-radius: 20px;
+        }
+
+        td {
+            padding: 5px 15px;
+        }
+    </style>
+
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/3.1.2/rollups/md5.js"></script>
+    <script type="text/javascript" src="assets/wasm_exec.js"></script>
+    <script>
+
+        const width = 160;
+        const height = 144;
+        const scale = 1;
+
+        var canvas;
+        var romMD5;
+        var rom;
+        var ctx;
+        var goCtx;
+
+        var rawImageBuffer;
+
+        var animateCount = 0;
+        var keystate = 0;
+        var fullSpeed = false;
+
+        function transformToAssocArray(prmstr) {
+            var params = {};
+            var prmarr = prmstr.split("&");
+            for (var i = 0; i < prmarr.length; i++) {
+                var tmparr = prmarr[i].split("=");
+                params[tmparr[0]] = tmparr[1];
+            }
+            return params;
+        }
+
+        function getSearchParameters() {
+            var prmstr = window.location.search.substr(1);
+            return prmstr != null && prmstr != "" ? transformToAssocArray(prmstr) : {};
+        }
+
+        async function init_wasm() {
+            goCtx = new Go();
+            var response = await fetch("./assets/borzgbc.wasm");
+            var buffer = await response.arrayBuffer();
+            var result = await WebAssembly.instantiate(buffer, goCtx.importObject);
+            goCtx.run(result.instance);
+        }
+
+        function keydownHandler(e) {
+            var code = e.keyCode;
+            switch (code) {
+                case 90:
+                    // Z key [ A ]
+                    keystate |= 1;
+                    break;
+                case 88:
+                    // X key [ B ]
+                    keystate |= 1 << 1;
+                    break;
+                case 40:
+                    // Down key
+                    keystate |= 1 << 2;
+                    break;
+                case 37:
+                    // Left key
+                    keystate |= 1 << 3;
+                    break;
+                case 39:
+                    // Right key
+                    keystate |= 1 << 4;
+                    break;
+                case 38:
+                    // Up key
+                    keystate |= 1 << 5;
+                    break;
+                case 13:
+                    // Enter key [ START ]
+                    keystate |= 1 << 6;
+                    break;
+                case 8:
+                    // Backspace key [ SELECT ]
+                    keystate |= 1 << 7;
+                    break;
+                case 70:
+                    // F key
+                    fullSpeed = !fullSpeed;
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        function keyupHandler(e) {
+            var code = e.keyCode;
+            switch (code) {
+                case 90:
+                    // Z key [ A ]
+                    keystate &= 0xfe;
+                    break;
+                case 88:
+                    // X key [ B ]
+                    keystate &= 0xfd;
+                    break;
+                case 40:
+                    // Down key
+                    keystate &= 0xfb;
+                    break;
+                case 37:
+                    // Left key
+                    keystate &= 0xf7;
+                    break;
+                case 39:
+                    // Right key
+                    keystate &= 0xef;
+                    break;
+                case 38:
+                    // Up key
+                    keystate &= 0xdf;
+                    break;
+                case 13:
+                    // Enter key [ START ]
+                    keystate &= 0xbf;
+                    break;
+                case 8:
+                    // Backspace key [ SELECT ]
+                    keystate &= 0x7f;
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        function getInt64(addr) {
+            const low = goCtx.mem.getUint32(addr + 0, true);
+            const high = goCtx.mem.getInt32(addr + 4, true);
+            return low + high * 4294967296;
+        }
+
+        function loadSlice(addr) {
+            const array = getInt64(addr + 0);
+            const len = getInt64(addr + 8);
+            return new Uint8ClampedArray(goCtx._inst.exports.mem.buffer, array, len);
+        }
+
+        function hideInputs() {
+            document.getElementById("inputContainer").style.display = 'none';
+            document.getElementById("inputs1").style.display = 'none';
+            document.getElementById("inputs2").style.display = 'none';
+        }
+
+        function animate() {
+            try {
+                emulator_start_timer();
+                if (!emulator_step()) {
+                    throw new Error("emulator_step failed");
+                }
+            } catch (e) {
+                console.log(e);
+
+                // fatal error... display it and hide the canvas
+                document.getElementById("canvas").style.display = 'none';
+                hideInputs();
+                var p = document.getElementById("fatalLog");
+                var t = document.createTextNode(JSON.stringify(e));
+                p.appendChild(t);
+                return;
+            }
+            var imageData = new ImageData(loadSlice(rawImageBuffer), width * scale, height * scale);
+            ctx.putImageData(imageData, 0, 0);
+            emulator_notify_input(keystate);
+
+            // save state every 1000 frames
+            if (animateCount % 1000 == 0) {
+                save_state();
+            }
+
+            document.getElementById("status").innerText = (fullSpeed ? "SPEED MODE" : "") + " frame: " + animateCount;
+            animateCount += 1;
+            var msToSleep = fullSpeed ? 0 : emulator_end_timer();
+            setTimeout(animate, msToSleep);
+        }
+
+        async function getRemoteBase64(url) {
+            const response = await fetch(url);
+            const blob = await response.blob();
+            const reader = new FileReader();
+            await new Promise((resolve, reject) => {
+                reader.onload = resolve;
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+            });
+            return reader.result.replace(/^data:.+;base64,/, '')
+        }
+
+        async function start() {
+            // hide inputs on desktop
+            var isMobile = navigator.userAgent.match(/(iPad)|(iPhone)|(iPod)|(android)|(webOS)/i)
+            if (!isMobile) {
+                document.getElementById("canvas").style.height = '80%';
+                hideInputs();
+            }
+
+            var params = getSearchParameters();
+
+            // canvas
+            canvas = document.getElementById("canvas");
+            ctx = canvas.getContext('2d');
+
+            // rom
+            var rom = "./assets/rom.gb";
+            if (params.rom != null) {
+                rom = params.rom;
+            }
+            rom = await getRemoteBase64(rom);
+            romMD5 = CryptoJS.MD5(rom).toString();
+            console.log("romMD5: ", romMD5)
+
+            // load sav (if any)
+            var sav = localStorage.getItem(romMD5);
+
+            await init_wasm();
+            rawImageBuffer = emulator_init(rom);
+            if (rawImageBuffer == 0) {
+                console.log("Unable to initialize emulator");
+                return;
+            }
+            console.log("got raw image buffer ", rawImageBuffer);
+            if (sav != null) {
+                emulator_load_sav(sav);
+            }
+
+            animate();
+        }
+
+        function save_state() {
+            var sav = emulator_store_sav();
+            localStorage.setItem(romMD5, sav);
+        }
+
+        window.onload = start;
+        window.onunload = save_state;
+        window.addEventListener('keydown', keydownHandler, false);
+        window.addEventListener('keyup', keyupHandler, false);
+
+        // prevent touch selection
+        const touchHandler = (ev) => {
+            ev.preventDefault() // Prevent text selection
+        }
+        document.addEventListener('touchstart', touchHandler, { passive: false })
+        document.addEventListener('touchmove', touchHandler, { passive: false })
+        document.addEventListener('touchend', touchHandler, { passive: false })
+        document.addEventListener('touchcancel', touchHandler, { passive: false })
+    </script>
+</head>
+
+<body>
+    <div class="container" style="touch-action: manipulation;">
+        <p id="status" align="center"></p>
+        <p align="center" style="touch-action: manipulation;">
+            <canvas id="canvas" width="160" height="144" style="border:1px solid #000000;"></canvas>
+        </p>
+        <br>
+        <div id="inputContainer">
+            <table id="inputs1" align="center">
+                <tr>
+                    <td> </td>
+                    <td> <button type="button" ontouchstart="keydownHandler({'keyCode': 38})"
+                            ontouchend="keyupHandler({'keyCode': 38})">^</button> </td>
+                    <td> </td>
+                    <td> </td>
+                    <td> </td>
+                    <td> </td>
+                    <td> </td>
+                </tr>
+                <tr>
+                    <td> <button type="button" ontouchstart="keydownHandler({'keyCode': 37})"
+                            ontouchend="keyupHandler({'keyCode': 37})">&lt;</button>
+                    </td>
+                    <td> </td>
+                    <td> <button type="button" ontouchstart="keydownHandler({'keyCode': 39})"
+                            ontouchend="keyupHandler({'keyCode': 39})">&gt;</button> </td>
+                    <td style="color: white;"> --------------------------- </td>
+                    <td> <button type="button" ontouchstart="keydownHandler({'keyCode': 88})"
+                            ontouchend="keyupHandler({'keyCode': 88})">B</button> </td>
+                    <td> <button type="button" ontouchstart="keydownHandler({'keyCode': 90})"
+                            ontouchend="keyupHandler({'keyCode': 90})">A</button> </td>
+                    <td> </td>
+                </tr>
+                <tr>
+                    <td> </td>
+                    <td> <button type="button" ontouchstart="keydownHandler({'keyCode': 40})"
+                            ontouchend="keyupHandler({'keyCode': 40})">v</button> </td>
+                    <td> </td>
+                    <td> </td>
+                    <td> </td>
+                    <td> </td>
+                    <td> </td>
+                </tr>
+            </table>
+            <br> <br> <br>
+            <table id="inputs2" align="center">
+                <tr>
+                    <td> <button type="button" ontouchstart="keydownHandler({'keyCode': 8})"
+                            ontouchend="keyupHandler({'keyCode': 8})">SELECT</button> </td>
+                    <td> <button id="speed" type="button" ontouchstart="keydownHandler({'keyCode': 70})">SPEED</button>
+                    </td>
+                    </td>
+                    <td> <button type="button" ontouchstart="keydownHandler({'keyCode': 13})"
+                            ontouchend="keyupHandler({'keyCode': 13})">START</button> </td>
+                </tr>
+            </table>
+        </div>
+    </div>
+    <p id="fatalLog"></p>
+</body>
+
+</html>
